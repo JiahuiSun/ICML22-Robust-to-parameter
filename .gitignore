@@ -152,3 +152,4 @@ videos/
 output/
 *.out
 *.sh
+test/

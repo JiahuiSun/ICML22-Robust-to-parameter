@@ -9,9 +9,7 @@ import os
 import numpy as np
 import pickle
 from examples.baselines import bench
-from examples.baselines.common.vec_env.vec_normalize import VecNormalize
 from examples.baselines.common.vec_env.dummy_vec_env import DummyVecEnv
-from examples.MRPO.MRPO_ppo2 import MRPORunner
 
 
 seed = 12
@@ -75,7 +73,6 @@ with U.make_session(num_cpu=1) as sess:
         obs, state, done = env.reset(), model.initial_state, False
         episode_rew = 0
         success = False
-        # FIXME: 为什么这里是1000步了？原来训练时不时只有13步？
         for step in range(nsteps):
             obs = np.clip((obs-mean) / np.sqrt(var), -clipob, clipob)  # normalize
             action, value, state, _ = model.step(obs, state, np.reshape(np.asarray([done]), (1,)))
