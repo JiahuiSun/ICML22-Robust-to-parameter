@@ -129,7 +129,7 @@ class ModifiableRoboschoolInvertedPendulum(RoboschoolInvertedPendulum, Roboschoo
     RANDOM_UPPER_CART_SIZE = 0.25
 
     RANDOM_LOWER_POLE_LENGTH = 0.5
-    RANDOM_UPPER_POLE_LENGTH = 2
+    RANDOM_UPPER_POLE_LENGTH = 2.0
 
     RANDOM_LOWER_FRICTION = 0.5
     RANDOM_UPPER_FRICTION = 1.1
@@ -154,8 +154,6 @@ class RandomNormalInvertedPendulum(RoboschoolXMLModifierMixin, ModifiableRobosch
             self.RANDOM_LOWER_POLE_LENGTH, self.RANDOM_UPPER_POLE_LENGTH)
         self.cartsize = self.np_random.uniform(
             self.RANDOM_LOWER_CART_SIZE, self.RANDOM_UPPER_CART_SIZE)
-        # self.friction = self.np_random.uniform(self.RANDOM_LOWER_FRICTION, self.RANDOM_UPPER_FRICTION)
-        # self.power = self.np_random.uniform(self.RANDOM_LOWER_POWER, self.RANDOM_UPPER_POWER)
 
         with self.modify_xml('inverted_pendulum.xml') as tree:
             for elem in tree.iterfind('worldbody/body/geom'):
@@ -487,11 +485,11 @@ class ModifiableRoboschoolAnt(RoboschoolAnt, RoboschoolTrackDistSuccessMixin):
     EXTREME_LOWER_DENSITY = 500
     EXTREME_UPPER_DENSITY = 1500
 
-    RANDOM_LOWER_FRICTION = 0.2
-    RANDOM_UPPER_FRICTION = 2.5
+    RANDOM_LOWER_FRICTION = 0.5
+    RANDOM_UPPER_FRICTION = 1.1
 
     EXTREME_LOWER_FRICTION = 0.2
-    EXTREME_UPPER_FRICTION = 1.4
+    EXTREME_UPPER_FRICTION = 2.5
 
     RANDOM_LOWER_DAMPING = 0.5
     RANDOM_UPPER_DAMPING = 2.5
@@ -500,7 +498,6 @@ class ModifiableRoboschoolAnt(RoboschoolAnt, RoboschoolTrackDistSuccessMixin):
     RANDOM_UPPER_FOOTLEN = 1.8
 
     def _reset(self, new=True):
-
         return super(ModifiableRoboschoolAnt, self)._reset()
 
     @property
@@ -514,7 +511,6 @@ class RandomNormalAnt(RoboschoolXMLModifierMixin, ModifiableRoboschoolAnt):
             self.RANDOM_LOWER_DENSITY, self.RANDOM_UPPER_DENSITY)
         self.friction = self.np_random.uniform(
             self.RANDOM_LOWER_FRICTION, self.RANDOM_UPPER_FRICTION)
-        # self.power = self.np_random.uniform(self.RANDOM_LOWER_POWER, self.RANDOM_UPPER_POWER)
 
         with self.modify_xml('ant.xml') as tree:
             for elem in tree.iterfind('default/geom'):
@@ -606,15 +602,15 @@ class RandomNormalFootAnt(RoboschoolXMLModifierMixin, ModifiableRoboschoolAnt):
         return parameters
 
 
-# Humanoid
+# =============== Humanoid =============
 class ModifiableRoboschoolHumanoid(RoboschoolHumanoid, RoboschoolTrackDistSuccessMixin):
     RANDOM_LOWER_DENSITY = 750
     RANDOM_UPPER_DENSITY = 1250
     EXTREME_LOWER_DENSITY = 500
     EXTREME_UPPER_DENSITY = 1500
 
-    RANDOM_LOWER_FRICTION = 0.6
-    RANDOM_UPPER_FRICTION = 1.0
+    RANDOM_LOWER_FRICTION = 0.5
+    RANDOM_UPPER_FRICTION = 1.1
     EXTREME_LOWER_FRICTION = 0.2
     EXTREME_UPPER_FRICTION = 1.4
 
@@ -626,14 +622,12 @@ class ModifiableRoboschoolHumanoid(RoboschoolHumanoid, RoboschoolTrackDistSucces
         return {'id': self.spec.id, }
 
 
-# =============== Humanoid =============
 class RandomNormalHumanoid(RoboschoolXMLModifierMixin, ModifiableRoboschoolHumanoid):
     def randomize_env(self):
         self.density = self.np_random.uniform(
             self.RANDOM_LOWER_DENSITY, self.RANDOM_UPPER_DENSITY)
         self.friction = self.np_random.uniform(
             self.RANDOM_LOWER_FRICTION, self.RANDOM_UPPER_FRICTION)
-        # self.power = self.np_random.uniform(self.RANDOM_LOWER_POWER, self.RANDOM_UPPER_POWER)
 
         with self.modify_xml('humanoid_symmetric.xml') as tree:
             for elem in tree.iterfind('worldbody/body/geom'):
@@ -749,7 +743,6 @@ class RandomNormalWalker2d(RoboschoolXMLModifierMixin, ModifiableRoboschoolWalke
             self.RANDOM_LOWER_DENSITY, self.RANDOM_UPPER_DENSITY)
         self.friction = self.np_random.uniform(
             self.RANDOM_LOWER_FRICTION, self.RANDOM_UPPER_FRICTION)
-        # self.power = self.np_random.uniform(self.RANDOM_LOWER_POWER, self.RANDOM_UPPER_POWER)
 
         with self.modify_xml('walker2d.xml') as tree:
             # for elem in tree.iterfind('worldbody/body/geom'):
@@ -760,7 +753,6 @@ class RandomNormalWalker2d(RoboschoolXMLModifierMixin, ModifiableRoboschoolWalke
                 elem.set('friction', str(self.friction) + ' .1 .1')
 
     def _reset(self, new=True):
-        # 令环境参数生效，环境的类不变，只是生成trajectory时用了新的参数
         if new:
             self.randomize_env()
         return super(RandomNormalWalker2d, self)._reset(new)
@@ -818,11 +810,11 @@ class ModifiableRoboschoolHalfCheetah(RoboschoolHalfCheetah, RoboschoolTrackDist
     EXTREME_LOWER_DENSITY = 500
     EXTREME_UPPER_DENSITY = 1500
 
-    RANDOM_LOWER_FRICTION = 0.2
-    RANDOM_UPPER_FRICTION = 2.25
+    RANDOM_LOWER_FRICTION = 0.5
+    RANDOM_UPPER_FRICTION = 1.1
 
     EXTREME_LOWER_FRICTION = 0.2
-    EXTREME_UPPER_FRICTION = 1.4
+    EXTREME_UPPER_FRICTION = 2.25
 
     RANDOM_LOWER_POWER = 0.7
     RANDOM_UPPER_POWER = 1.1

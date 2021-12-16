@@ -27,7 +27,7 @@ def uniform_exclude_inner(np_uniform, a, b, a_i, b_i):
         if (a <= result and result < a_i) or (b_i <= result and result < b):
             return result
 
-# Cart pole environment variants.
+# ============= Cart pole ================
 class ModifiableCartPoleEnv(CartPoleEnv, EnvBinarySuccessMixin):
 
     RANDOM_LOWER_FORCE_MAG = 5.0
@@ -390,19 +390,16 @@ class RandomExtremeCartPole(ModifiableCartPoleEnv):
         return parameters
 
 
-# Mountain car environment variants.
-
+# ============= Mountain car environment variants. ==============
 class ModifiableMountainCarEnv(MountainCarEnv):
     """A variant of mountain car without hardcoded force/mass."""
-    RANDOM_LOWER_FORCE = 0.001
-    RANDOM_UPPER_FORCE = 0.01
+    RANDOM_LOWER_FORCE = 0.0005
+    RANDOM_UPPER_FORCE = 0.005
 
     EXTREME_LOWER_FORCE = 0.0001
     EXTREME_UPPER_FORCE = 0.01
 
-    # RANDOM_LOWER_MASS = 0.001
-    # RANDOM_UPPER_MASS = 0.005
-    RANDOM_LOWER_MASS = 0.0005
+    RANDOM_LOWER_MASS = 0.001
     RANDOM_UPPER_MASS = 0.005
 
     EXTREME_LOWER_MASS = 0.0005
@@ -936,9 +933,8 @@ class RandomExtremePendulum(ModifiablePendulumEnv):
         parameters.update({'mass': self.mass, 'length': self.length, })
         return parameters
 
-# Acrobot variants.
 
-
+# =============== Acrobot variants. ===============
 class ModifiableAcrobotEnv(AcrobotEnv):
 
     RANDOM_LOWER_MASS = 0.75
@@ -948,10 +944,8 @@ class ModifiableAcrobotEnv(AcrobotEnv):
 
     RANDOM_LOWER_LENGTH = 0.75
     RANDOM_UPPER_LENGTH = 1.25
-    # EXTREME_LOWER_LENGTH = 0.5
-    # EXTREME_UPPER_LENGTH = 1.5
     EXTREME_LOWER_LENGTH = 0.5
-    EXTREME_UPPER_LENGTH = 2
+    EXTREME_UPPER_LENGTH = 1.5
 
     RANDOM_LOWER_INERTIA = 0.75
     RANDOM_UPPER_INERTIA = 1.25

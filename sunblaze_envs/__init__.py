@@ -18,13 +18,6 @@ register(
     reward_threshold=195.0,
 )
 
-register(
-    id='SunblazeCartPoleRandomExtreme-v0',
-    entry_point='sunblaze_envs.classic_control:RandomExtremeCartPole',
-    max_episode_steps=200,
-    reward_threshold=195.0,
-)
-
 # MountainCar
 register(
     id='SunblazeMountainCar-v0',
@@ -36,13 +29,6 @@ register(
 register(
     id='SunblazeMountainCarRandomNormal-v0',
     entry_point='sunblaze_envs.classic_control:RandomNormalMountainCar',
-    max_episode_steps=200,
-    reward_threshold=-110.0,
-)
-
-register(
-    id='SunblazeMountainCarRandomExtreme-v0',
-    entry_point='sunblaze_envs.classic_control:RandomExtremeMountainCar',
     max_episode_steps=200,
     reward_threshold=-110.0,
 )
@@ -60,30 +46,18 @@ register(
     max_episode_steps=500,
 )
 
-register(
-    id='SunblazeAcrobotRandomExtreme-v0',
-    entry_point='sunblaze_envs.classic_control:RandomExtremeAcrobot',
-    max_episode_steps=500,
-)
-
-# Mujoco environments
+# ============== Mujoco environments ================
 # InvertPendulum
 register(
     id='SunblazePendulum-v0',
-    entry_point='sunblaze_envs.classic_control:ModifiablePendulumEnv',
-    max_episode_steps=200,
+    entry_point='sunblaze_envs.mujoco:ModifiableRoboschoolInvertedPendulum',
+    max_episode_steps=1000,
 )
 
 register(
     id='SunblazePendulumRandomNormal-v0',
-    entry_point='sunblaze_envs.classic_control:RandomNormalPendulum',
-    max_episode_steps=200,
-)
-
-register(
-    id='SunblazePendulumRandomExtreme-v0',
-    entry_point='sunblaze_envs.classic_control:RandomExtremePendulum',
-    max_episode_steps=200,
+    entry_point='sunblaze_envs.mujoco:RandomNormalInvertedPendulum',
+    max_episode_steps=1000,
 )
 
 # Ant
@@ -101,20 +75,6 @@ register(
     reward_threshold=3800.0,
 )
 
-register(
-    id='SunblazeFDAntRandomNormal-v0',
-    entry_point='sunblaze_envs.mujoco:RandomNormalFDAnt',
-    max_episode_steps=1000,
-    reward_threshold=3800.0,
-)
-
-register(
-    id='SunblazeFootAntRandomNormal-v0',
-    entry_point='sunblaze_envs.mujoco:RandomNormalFootAnt',
-    max_episode_steps=1000,
-    reward_threshold=3800.0,
-)
-
 # Humanoid
 register(
     id = 'SunblazeHumanoid-v0',
@@ -124,7 +84,7 @@ register(
 )
 
 register(
-    id='SunblazeHumanoiddRandomNormal-v0',
+    id='SunblazeHumanoidRandomNormal-v0',
     entry_point='sunblaze_envs.mujoco:RandomNormalHumanoid',
     max_episode_steps=1000,
     reward_threshold=3800.0,
@@ -175,13 +135,6 @@ register(
     reward_threshold=3800.0,
 )
 
-register(
-    id='SunblazeHopperRandomExtreme-v0',
-    entry_point='sunblaze_envs.mujoco:RandomExtremeHopper',
-    max_episode_steps=1000,
-    reward_threshold=3800.0,
-)
-
 # HalfCheetah
 register(
     id='SunblazeHalfCheetah-v0',
@@ -193,20 +146,6 @@ register(
 register(
     id='SunblazeHalfCheetahRandomNormal-v0',
     entry_point='sunblaze_envs.mujoco:RandomNormalHalfCheetah',
-    max_episode_steps=1000,
-    reward_threshold=4800.0,
-)
-
-register(
-    id='SunblazeHalfCheetahRandomNormalEvaluate-v0',
-    entry_point='sunblaze_envs.mujoco:RandomNormalHalfcheetahEvaluate',
-    max_episode_steps=1000,
-    reward_threshold=4800.0,
-)
-
-register(
-    id='SunblazeHalfCheetahRandomExtreme-v0',
-    entry_point='sunblaze_envs.mujoco:RandomExtremeHalfCheetah',
     max_episode_steps=1000,
     reward_threshold=4800.0,
 )
