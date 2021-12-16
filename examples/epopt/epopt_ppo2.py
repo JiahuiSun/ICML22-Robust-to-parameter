@@ -144,7 +144,7 @@ class EPOptRunner(BaseRunner):
         cutoff = np.percentile(episode_returns, 100*epsilon)
         # indexes = [i for i, r in enumerate(mb_rewards) if r <= cutoff]
 
-        # FIXME: 它没有输出平均和最差10%的return是多少，我自己加一下
+        # 它没有输出平均和最差10%的return是多少，我自己加一下
         real_return = [epinfo[0]['r'] for epinfo in n_epinfos]
         return_cutoff = np.percentile(real_return, 10)
         wst10_return = [ret for ret in real_return if ret <= return_cutoff]

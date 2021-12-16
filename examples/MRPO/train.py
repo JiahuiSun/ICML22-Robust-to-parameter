@@ -106,7 +106,7 @@ def main():
     parser.add_argument('--env', help='environment ID', default='SunblazeWalker2dRandomNormal-v0')
     parser.add_argument('--seed', type=int, default=6, help='RNG seed, defaults to random')
     parser.add_argument('--output', type=str, default='output')
-    parser.add_argument('--cuda', type=int, default=3)
+    parser.add_argument('--cuda', type=int, default=-1)
     # TODO: 跑多核有问题
     parser.add_argument('--processes', default=1, help='int or "max" for all')
    
@@ -115,14 +115,14 @@ def main():
     parser.add_argument('--eps-end', type=float, default=40)
     parser.add_argument('--eps-raise', type=float, default=1.005)
 
-    parser.add_argument('--paths', type=int, default=100, help='number of trajectories to sample from each iteration')
+    parser.add_argument('--paths', type=int, default=50, help='number of trajectories to sample from each iteration')
     parser.add_argument('--algorithm', type=str, choices=['ppo2', 'a2c', 'MRPO' ],
         default='MRPO', help='Inner batch policy optimization algorithm')
     parser.add_argument('--policy', choices=['mlp', 'lstm'],
         default='mlp', help='Policy architecture')
 
     # Episode-modification specific:
-    parser.add_argument('--total-episodes', type=int, default=5e4) # 5e4
+    parser.add_argument('--total-episodes', type=int, default=2.5e4) # 5e4
     # RL algo. hyperparameters
     parser.add_argument('--lr', type=float, default=3e-4)
     parser.add_argument('--nsteps', type=int, default=2048)

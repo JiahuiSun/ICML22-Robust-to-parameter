@@ -155,7 +155,7 @@ def main():
     parser.add_argument('--epsilon', type=float, default=1.0)
     # EPOpt paper keept epsilon=1 until iters>100 (max 200 iters)
     parser.add_argument('--activate', type=int, default=100, help='How long to fix epsilon to 1.0 before e')
-    parser.add_argument('--paths', type=int, default=100, help='number of trajectories to sample from each iteration')
+    parser.add_argument('--paths', type=int, default=50, help='number of trajectories to sample from each iteration')
     parser.add_argument('--algorithm', type=str, choices=['ppo2', 'a2c'],
         default='ppo2', help='Inner batch policy optimization algorithm')
     parser.add_argument('--policy', choices=['mlp', 'lstm'],

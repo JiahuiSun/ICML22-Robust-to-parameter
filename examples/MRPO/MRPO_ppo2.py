@@ -143,8 +143,7 @@ class MRPORunner(BaseRunner):
             mb_enparam.append(self.env.envs[0].env.env.env.density)
             mb_enparam.append(self.env.envs[0].env.env.env.friction)
             # 这里就是仿真这个环境下的结果, collector
-            # for istep in range(self.env.venv.envs[0].spec.max_episode_steps):
-            for istep in range(self.env.venv.spec.max_episode_steps):
+            for istep in range(self.env.venv.envs[0].spec.max_episode_steps):
                 actions, values, self.states, neglogpacs = self.model.step(self.obs, self.states, self.dones)
                 mb_obs.append(self.obs.copy())
                 mb_actions.append(actions)
