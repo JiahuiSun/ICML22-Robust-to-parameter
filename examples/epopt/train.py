@@ -93,13 +93,11 @@ def train_epopt(
                 #nminibatches=64,  # used by ppo_baselines
                 lam=0.95,
                 gamma=0.99,
-                noptepochs=10,
-                log_interval=1,
+                noptepochs=5,
+                log_interval=10,
                 ent_coef=0.0,
                 lr=lr,
-                #lr=3e-4,
                 cliprange=0.2,
-                #total_timesteps=num_timesteps,
                 total_episodes=total_episodes,
                 # EPOpt specific
                 paths=paths,
