@@ -83,20 +83,15 @@ def train_MRPO(
                 #nminibatches=64,  # used by ppo_baselines
                 lam=0.95,
                 gamma=0.99,
-                noptepochs=10,
-                log_interval=1,
+                noptepochs=5,  # trajectory训练多少次
+                log_interval=10,
                 ent_coef=0.0,
                 lr=lr,
-                #lr=3e-4,
                 cliprange=0.2,
-                #total_timesteps=num_timesteps,
                 total_episodes=total_episodes,
-                # EPOpt specific
                 paths=paths,
-                # functions the same as old pposgd checkpointer
                 save_interval=100
             )
-    # some other inner RL algorithm
     else:
         raise NotImplementedError
 

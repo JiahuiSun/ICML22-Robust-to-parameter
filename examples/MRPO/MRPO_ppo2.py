@@ -124,26 +124,22 @@ class MRPORunner(BaseRunner):
         """Instead of doing a trajectory of nsteps (ie, "horizon"), do a
         sample N "paths" and then return the bottom epsilon-percentile
         """
-        # multienvs = self.env.num_envs > 1
-        # Store all N trajectories sampled then return data of bottom-epsilon
-        # lists -> lists of lists
-        # paths = self.env_num
         n_mb_obs, n_mb_rewards, n_mb_actions, n_mb_values, n_mb_dones, n_mb_neglogpacs, n_mb_envparam, n_mb_bnobn = [[] for _ in range(paths)],\
                             [[] for _ in range(paths)], [[] for _ in range(paths)], [[] for _ in range(paths)], [[] for _ in range(paths)], [[] for _ in range(paths)], [[] for _ in range(paths)], [[] for _ in range(paths)]
         n_epinfos = [[] for _ in range(paths)]
         mb_states = self.states
         num_episodes = 0
         self.dones = [True]
-        # TODO: 这里作者没有按照论文里那样，真正的采样不同的参数，而是直接采样trajectory，每个trajectory应该对应着不同的参数
+        # 直接采样trajectory，每个trajectory应该对应着不同的参数
         for N in range(paths):
             mb_obs, mb_rewards, mb_actions, mb_values, mb_dones, mb_neglogpacs, epinfos, mb_enparam \
                 = n_mb_obs[N], n_mb_rewards[N], n_mb_actions[N], n_mb_values[N], n_mb_dones[N], n_mb_neglogpacs[N], \
                   n_epinfos[N], n_mb_envparam[N]
-            # TODO: 这里不会环境的参数自动在变吧，竟然要每次保存一下参数
+            # TODO: hard code
             mb_enparam.append(self.env.envs[0].env.env.env.density)
             mb_enparam.append(self.env.envs[0].env.env.env.friction)
             # 这里就是仿真这个环境下的结果, collector
-            for istep in range(self.env.venv.envs[0].spec.max_episode_steps):
+            for _ in range(self.env.venv.envs[0].spec.max_episode_steps):
                 actions, values, self.states, neglogpacs = self.model.step(self.obs, self.states, self.dones)
                 mb_obs.append(self.obs.copy())
                 mb_actions.append(actions)
@@ -152,9 +148,7 @@ class MRPORunner(BaseRunner):
                 mb_dones.append(self.dones)
                 self.obs[:], rewards, self.dones, infos, self.obsbn[:] = self.env.step(actions)
 
-                # self.obs[:], rewards, self.dones, infos = self.env.step(actions)
-                # FIXME: wocccc，训练时reward做了归一化，返回的reward不再是真正的reward的了
-                # 所以作者从info中得到真正的reward是多少
+                # TODO: wocccc，训练时reward做了归一化，返回的reward不再是真正的reward的了
                 for info in infos:
                     maybeepinfo = info.get('episode')
                     if maybeepinfo: 
@@ -162,7 +156,6 @@ class MRPORunner(BaseRunner):
                 mb_rewards.append(rewards)
                 # Stop once single thread has finished an episode
                 if self.dones:  # ie [True]
-                    print(f'episode {N} done with {istep} steps')
                     break
 
         # Compute the worst epsilon paths and concatenate them
@@ -170,7 +163,6 @@ class MRPORunner(BaseRunner):
 
         print('----------episode return-------')
         print(episode_returns)
-        # cutoff = np.percentile(episode_returns, 0)   # return the worst
         cutoff = np.min(episode_returns)
         minidx_ = np.argwhere(episode_returns == cutoff).squeeze()
         print('worst env:{}'.format(minidx_))
@@ -181,24 +173,19 @@ class MRPORunner(BaseRunner):
             minidx = minidx_
         # 这个是最最最最差的环境的参数
         wst_envparam = n_mb_envparam[minidx]
-        # indexes = [i for i, r in enumerate(mb_rewards) if r <= cutoff]
 
-        mb_obs, mb_rewards, mb_actions, mb_values, mb_dones, mb_neglogpacs, mb_EpLen = [],[],[],[],[],[], []
+        mb_obs, mb_rewards, mb_actions, mb_values, mb_dones, mb_neglogpacs = [],[],[],[],[],[]
         epinfos = []
+        # TODO: hard code, 这里就每个环境创建一个文件夹吧
         envparam_normalizatio = np.zeros(shape=np.array(wst_envparam).shape)
         envparam_normalizatio[0] = (self.env.envs[0].env.env.env.RANDOM_UPPER_DENSITY - self.env.envs[0].env.env.env.RANDOM_LOWER_DENSITY)*2
-        envparam_normalizatio[1] = (self.env.envs[0].env.env.env.RANDOM_UPPER_FRICTION - self.env.envs[0].env.env.env.RANDOM_LOWER_FRICTION) # *2can be tuned FIXME: 作者这加了一行
+        envparam_normalizatio[1] = (self.env.envs[0].env.env.env.RANDOM_UPPER_FRICTION - self.env.envs[0].env.env.env.RANDOM_LOWER_FRICTION) # *2can be tuned 
 
         # compute obj list
-        obj_list = []
-        envparam_comp_list = []
-        rew_max_list = []
         return_cutoff = np.percentile(episode_returns, 10)
         epinfos_percen10 = []
         epinfos_all = []
-        nonw_counter = 0
         episode_returns_percen10 = []
-
         wst_percen_params_list = []
         wst_percen_idx_list = []
 
@@ -232,23 +219,18 @@ class MRPORunner(BaseRunner):
                 epinfos.extend(next_epinfos)
                 print('N:{}   return:{}'.format(N, next_epinfos[0]['r']))
 
+        # add trajectories that is choosed by their metric eps
         wst_percen_params_arr = np.array(wst_percen_params_list)
         for N in range(paths):
-
-            next_rewards = n_mb_rewards[N]
-            rew_max = (np.array(next_rewards) + 10).max()
-
             envparam_comp_arr = (wst_percen_params_arr -  np.array(n_mb_envparam[N]))/ np.array(envparam_normalizatio)
             # print(envparam_comp_arr)
             envparam_comp = np.sum(envparam_comp_arr, axis=1).__abs__()
             # print(envparam_comp)
-            # TODO: 出现了，eps
-            # 这这就是line9计算的值，收益 - eps * 参数差距
+            # TODO: 出现了，这这就是line9计算的值，收益 - eps * 参数差距
             objs = episode_returns[N] - eps * envparam_comp
             # print(objs)
             # print(episode_returns_percen10)
             if all(objs>episode_returns_percen10) and N not in wst_percen_idx_list:
-            # if objs>episode_returns[minidx] and N not in wst_percen_idx_list:
                 num_episodes += 1
                 # "cache" values to keep track of final ones
                 next_obs = n_mb_obs[N]
@@ -266,11 +248,9 @@ class MRPORunner(BaseRunner):
                 mb_dones.extend(next_dones)
                 mb_neglogpacs.extend(next_neglogpacs)
                 epinfos.extend(next_epinfos)
-                # print(next_epinfos)
-                # print('N:{}   return:{}'.format(N, next_epinfos[0]['r']))
+                print('N:{}   return:{}'.format(N, next_epinfos[0]['r']))
 
         total_steps = len(mb_rewards)
-        # FIXME: 这什么情况？不用环境返回的return，怎么用info里的reward？
         epremean_percentile10 = safemean([epinfo['r'] for epinfo in epinfos_percen10])
         eprewmean_all = safemean([epinfo['r'] for epinfo in epinfos_all])
         print('{} envs choosed'.format(num_episodes))
@@ -288,14 +268,12 @@ class MRPORunner(BaseRunner):
         # We can't just use self.obs etc, because the last of the N paths
         # may not be included in the update
         last_values = self.model.value(self.obs, self.states, self.dones)  # value function
-
         #  discount/bootstrap off value fn
         mb_returns = np.zeros_like(mb_rewards)
         mb_advs = np.zeros_like(mb_rewards)
         lastgaelam = 0
 
         # Instead using nsteps, use the total number of steps in all kept trajectories
-        #for t in reversed(range(self.nsteps)):
         for t in reversed(range(total_steps)):
             #if t == self.nsteps - 1:
             if t == total_steps - 1:
@@ -308,9 +286,8 @@ class MRPORunner(BaseRunner):
             mb_advs[t] = lastgaelam = delta + self.gamma * self.lam * nextnonterminal * lastgaelam
 
         mb_returns = mb_advs + mb_values
-
         return (*map(sf01, (mb_obs, mb_returns, mb_dones, mb_actions, mb_values, mb_neglogpacs)),
-            mb_states, epinfos, num_episodes, eprewmean_all, epremean_percentile10, np.array(episode_returns).squeeze()) #, envparam_comp_array, n_mb_envparam
+            mb_states, epinfos, num_episodes, eprewmean_all, epremean_percentile10, np.array(episode_returns).squeeze()) 
 
 def learn(*, policy, env, env_id, nsteps, total_episodes, ent_coef, lr,
             vf_coef=0.5,  max_grad_norm=0.5, gamma=0.99, lam=0.95,
@@ -377,12 +354,10 @@ def learn(*, policy, env, env_id, nsteps, total_episodes, ent_coef, lr,
         frac = 1.0 - (update - 1.0) / total_episodes
         lrnow = lr(frac)
         cliprangenow = cliprange(frac)
-        # obs, returns, masks, actions, values, neglogpacs, states, epinfos, num_episodes, eprewmean_all, epremean_percentile10, \
-        #     episodes_returns, env_params_comp_arr, env_params = runner.run(paths=paths, epsilon=epsilonnow, wst_env=wst_env) #pylint: disable=E0632
+        
         # TODO: 应该跟tianshou类似，这里就是收集trajectory，下面是train
         obs, returns, masks, actions, values, neglogpacs, states, epinfos, num_episodes, eprewmean_all, epremean_percentile10, \
         episodes_returns = runner.run(paths=paths, eps=eps)  # pylint: disable=E0632
-        # env_params = np.array(env_params).transpose()
 
         # if num_episodes>30:
         #     eps = eps_raise * eps
@@ -424,12 +399,12 @@ def learn(*, policy, env, env_id, nsteps, total_episodes, ent_coef, lr,
         # log
         if update % log_interval == 0 or update == 1:
             ev = explained_variance(values, returns)
-            logger.logkv("serial_timesteps", update*nsteps)
+            # logger.logkv("serial_timesteps", update*nsteps)
             logger.logkv("nupdates", update)
             logger.logkv("total_episodes", episodes_so_far)
-            logger.logkv("total_timesteps", update*nbatch)
+            # logger.logkv("total_timesteps", update*nbatch)
             logger.logkv("envs choosed", num_episodes)
-            logger.logkv("fps", fps)
+            # logger.logkv("fps", fps)
             logger.logkv("eps", eps)
             logger.logkv("explained_variance", float(ev))
             logger.logkv('eprewmean', safemean([epinfo['r'] for epinfo in epinfobuf]))
@@ -460,8 +435,13 @@ def learn(*, policy, env, env_id, nsteps, total_episodes, ent_coef, lr,
                 os.remove(old_savepath)
             old_savepath = savepath
     savepath = osp.join(checkdir, 'final')
-    print('Saving to', savepath)
     model.save(savepath)
+    obs_norms = {}
+    obs_norms['clipob'] = env.clipob
+    obs_norms['mean'] = env.ob_rms.mean
+    obs_norms['var'] = env.ob_rms.var+env.epsilon
+    with open(osp.join(checkdir, 'normalize_final'), 'wb') as f:
+        pickle.dump(obs_norms, f, pickle.HIGHEST_PROTOCOL)
     env.close()
     # save data
     logdir = logger.get_dir()

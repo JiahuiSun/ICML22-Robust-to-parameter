@@ -24,7 +24,7 @@ class RoboschoolTrackDistSuccessMixin(EnvBinarySuccessMixin):
 
     def is_success(self):
         """Returns True is current state indicates success, False otherwise
-        # FIXME: 我猜作者的意思是，horizon最多1000，agent永远走不到终点，也就无法success
+        TODO: 我猜作者的意思是，horizon最多1000，agent永远走不到终点，也就无法success
          x=100 correlates to the end of the track on Roboschool,
          but with the default 1000 max episode length most (all?) agents
          won't reach it (DD PPO2 Hopper reaches ~40), so we use something lower
@@ -738,7 +738,7 @@ class RandomNormalWalker2d(RoboschoolXMLModifierMixin, ModifiableRoboschoolWalke
                 elem.set('friction', str(self.friction) + ' .1 .1')
 
     def randomize_env(self):
-        # FIXME: 就是这里！！！修改参数
+        # TODO: 就是这里！！！修改参数
         self.density = self.np_random.uniform(
             self.RANDOM_LOWER_DENSITY, self.RANDOM_UPPER_DENSITY)
         self.friction = self.np_random.uniform(
