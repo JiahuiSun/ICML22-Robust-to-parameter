@@ -88,7 +88,7 @@ def train_MRPO(
                 noptepochs=10,  # trajectory训练多少遍
                 log_interval=10,
                 cliprange=0.2,
-                save_interval=100
+                save_interval=10
             )
     else:
         raise NotImplementedError
