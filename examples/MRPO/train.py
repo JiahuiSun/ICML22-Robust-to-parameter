@@ -32,7 +32,7 @@ def train_MRPO(
         eps_raise,
         eps_end,
         ent_coef
-        ):
+    ):
     # Set up environment
     config = tf.ConfigProto(allow_soft_placement=True,
                             intra_op_parallelism_threads=ncpu,
@@ -96,11 +96,11 @@ def train_MRPO(
 
 def main():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--env', help='environment ID', default='SunblazeWalker2dRandomNormal-v0')
-    parser.add_argument('--seed', type=int, default=6, help='RNG seed, defaults to random')
+    parser.add_argument('--env', help='environment ID', default='SunblazeWalker2dUniform-v0')
+    parser.add_argument('--seed', type=int, help='RNG seed, defaults to random')
     parser.add_argument('--output', type=str, default='output')
     parser.add_argument('--cuda', type=int, default=-1)
-    parser.add_argument('--processes', default=10, help='int or "max" for all')
+    parser.add_argument('--processes', default=25, help='int or "max" for all')
    
     # MRPO sepcific
     parser.add_argument('--eps-start', type=float, default=1.0)
@@ -118,7 +118,7 @@ def main():
     # RL algo. hyperparameters
     parser.add_argument('--lr', type=float, default=3e-4)
     parser.add_argument('--ent-coef', type=float, default=0.0, help='Only relevant for A2C')
-    parser.add_argument('--nminibatches', type=int, default=64, help='Only relevant for PPO2')
+    parser.add_argument('--nminibatches', type=int, default=128, help='Only relevant for PPO2')
     args = parser.parse_args()
 
     # gpu config
@@ -136,7 +136,7 @@ def main():
         seed = create_seed(args.seed, max_bytes=4)
     else:
         seed = args.seed 
-    with open(os.path.join(log_dir, 'args.txt'), 'w') as fout:
+    with open(os.path.join(log_dir, f'{seed}.txt'), 'w') as fout:
         fout.write(f"{args}")
 
     if args.processes == 'max':
@@ -162,7 +162,7 @@ def main():
         eps_raise=args.eps_raise,
         eps_end=args.eps_end,
         ent_coef=args.ent_coef
-        )
+    )
 
 
 if __name__ == '__main__':

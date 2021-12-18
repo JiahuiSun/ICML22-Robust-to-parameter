@@ -151,7 +151,7 @@ class MRPORunner(BaseRunner):
             mb_values = np.array(mb_values)
             mb_dones = np.array(mb_dones)
             mb_neglogpacs = np.array(mb_neglogpacs)
-            # 提取每个环境的trajectory
+            # 提取每个环境的一条trajectory，因为环境执行完有早有晚
             for i in range(n_parallel):
                 n_mb_obs[i+n_parallel*N] = mb_obs[:stop_time_idx[i], i]
                 n_mb_actions[i+n_parallel*N] = mb_actions[:stop_time_idx[i], i]
@@ -165,12 +165,8 @@ class MRPORunner(BaseRunner):
 
         # Compute the worst epsilon paths and concatenate them
         episode_returns = np.array([sum(r) for r in n_mb_rewards]).squeeze()
-
-        print('----------episode return-------')
-        print(episode_returns)
         cutoff = np.min(episode_returns)
         minidx_ = np.argwhere(episode_returns == cutoff).squeeze()
-        print('worst env:{}'.format(minidx_))
         if isinstance(minidx_, list):
             print('list')
             minidx = minidx_[0]
@@ -236,13 +232,12 @@ class MRPORunner(BaseRunner):
                 mb_dones.extend(next_dones)
                 mb_neglogpacs.extend(next_neglogpacs)
 
-        total_steps = len(mb_rewards)
+        total_steps = len(mb_rewards)  # 所有trajectory一共有多少step
         ratio = paths // 10
         epremean_percentile10 = np.mean(np.partition(n_Jpi, ratio)[:ratio])
         eprewmean_all = np.mean(n_Jpi)
         avg_traj_len = np.mean(n_Jlen)
 
-        #  batch of steps to batch of rollouts
         mb_obs = np.asarray(mb_obs, dtype=self.obs.dtype)
         mb_rewards = np.asarray(mb_rewards, dtype=np.float32)
         mb_actions = np.asarray(mb_actions)
@@ -251,11 +246,12 @@ class MRPORunner(BaseRunner):
         mb_dones = np.asarray(mb_dones, dtype=np.bool)
 
         # GAE
+        # NOTE: 这里不能用self.obs，因为最后一个trajectory可能没有被选择
         last_obs = mb_obs[-n_parallel:]
         last_done = mb_dones[-1]
         last_values = self.model.value(last_obs, self.states, last_done)  # value function
         last_values = last_values[-1]
-        #  discount/bootstrap off value fn
+
         mb_returns = np.zeros_like(mb_rewards)
         mb_advs = np.zeros_like(mb_rewards)
         lastgaelam = 0
@@ -268,8 +264,8 @@ class MRPORunner(BaseRunner):
                 nextvalues = mb_values[t+1]
             delta = mb_rewards[t] + self.gamma * nextvalues * nextnonterminal - mb_values[t]
             mb_advs[t] = lastgaelam = delta + self.gamma * self.lam * nextnonterminal * lastgaelam
-
         mb_returns = mb_advs + mb_values
+
         return mb_obs, mb_returns, mb_dones, mb_actions, mb_values, mb_neglogpacs, self.states, num_episodes, eprewmean_all, epremean_percentile10, avg_traj_len
 
 
@@ -278,7 +274,8 @@ def learn(policy, env, total_episodes=5e4, lr=3e-4, ncpu=4,
         gamma=0.99, lam=0.95, log_interval=10, 
         nminibatches=64, noptepochs=4, cliprange=0.2,
         save_interval=0, keep_all_ckpt=False, paths=100, 
-        eps_start=1.0, eps_end=40, eps_raise=1.005):
+        eps_start=1.0, eps_end=40, eps_raise=1.005
+    ):
     # Callable lr and cliprange don't work (at the moment) with the
     # total_episodes terminating condition
     if isinstance(lr, float):

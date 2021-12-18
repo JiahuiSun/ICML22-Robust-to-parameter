@@ -14,6 +14,7 @@ from roboschool.gym_reacher import RoboschoolReacher
 
 from .base import EnvBinarySuccessMixin
 from .classic_control import uniform_exclude_inner
+from .utils import EnvParamSampler
 
 # Determine Roboschool asset location based on its module path.
 ROBOSCHOOL_ASSETS = os.path.join(roboschool.__path__[0], 'mujoco_assets')
@@ -85,12 +86,8 @@ class ModifiableRoboschoolReacher(RoboschoolReacher, RoboschoolTrackDistSuccessM
     RANDOM_LOWER_BODY_LENGTH = 0.1
     RANDOM_UPPER_BODY_LENGTH = 0.13
 
-    def _reset(self, new=True):
+    def _reset(self):
         return super(ModifiableRoboschoolReacher, self)._reset()
-
-    @property
-    def parameters(self):
-        return {'id': self.spec.id, }
 
 
 class RandomNormalRoboschoolReacher(RoboschoolXMLModifierMixin, ModifiableRoboschoolReacher):
@@ -113,13 +110,16 @@ class RandomNormalRoboschoolReacher(RoboschoolXMLModifierMixin, ModifiableRobosc
     def _reset(self, new=True):
         if new:
             self.randomize_env()
-        return super(RandomNormalRoboschoolReacher, self)._reset(new)
+        return super(RandomNormalRoboschoolReacher, self)._reset()
 
     @property
     def parameters(self):
-        parameters = super(RandomNormalRoboschoolReacher, self).parameters
-        parameters.update({'size': self.size, 'length': self.length, })
-        return parameters
+        return [self.size, self.length]
+    
+    @property
+    def lower_upper_bound(self):
+        return [self.RANDOM_LOWER_BODY_SIZE, self.RANDOM_UPPER_BODY_SIZE,
+                self.RANDOM_LOWER_BODY_LENGTH, self.RANDOM_UPPER_BODY_LENGTH]
 
 
 # ============== InvertedPendulum ===============
@@ -140,12 +140,8 @@ class ModifiableRoboschoolInvertedPendulum(RoboschoolInvertedPendulum, Roboschoo
     RANDOM_LOWER_RAIL_SIZE = 0.01
     RANDOM_UPPER_RAIL_SIZE = 0.03
 
-    def _reset(self, new=True):
+    def _reset(self):
         return super(ModifiableRoboschoolInvertedPendulum, self)._reset()
-
-    @property
-    def parameters(self):
-        return {'id': self.spec.id, }
 
 
 class RandomNormalInvertedPendulum(RoboschoolXMLModifierMixin, ModifiableRoboschoolInvertedPendulum):
@@ -164,317 +160,16 @@ class RandomNormalInvertedPendulum(RoboschoolXMLModifierMixin, ModifiableRobosch
     def _reset(self, new=True):
         if new:
             self.randomize_env()
-        return super(RandomNormalInvertedPendulum, self)._reset(new)
+        return super(RandomNormalInvertedPendulum, self)._reset()
 
     @property
     def parameters(self):
-        parameters = super(RandomNormalInvertedPendulum, self).parameters
-        parameters.update({'length': self.length, 'cart-size': self.cartsize})
-        return parameters
-
-
-# random pole size
-class RandomPolesizeInvertedPendulum(RoboschoolXMLModifierMixin, ModifiableRoboschoolInvertedPendulum):
-    def randomize_env(self):  # random pole size
-        # self.cartsize = self.np_random.uniform(self.RANDOM_LOWER_CART_SIZE, self.RANDOM_UPPER_CART_SIZE)
-        # self.length = self.np_random.uniform(self.RANDOM_LOWER_POLE_LENGTH, self.RANDOM_UPPER_POLE_LENGTH)
-
-        # self.friction = self.np_random.uniform(self.RANDOM_LOWER_FRICTION, self.RANDOM_UPPER_FRICTION)
-        # self.power = self.np_random.uniform(self.RANDOM_LOWER_POWER, self.RANDOM_UPPER_POWER)
-        self.polesize = self.np_random.uniform(
-            self.RANDOM_LOWER_POLE_SIZE, self.RANDOM_UPPER_POLE_SIZE)
-
-        with self.modify_xml('inverted_pendulum.xml') as tree:
-            # for elem in tree.iterfind('worldbody/body/geom'):
-            #     elem.set('size', str(self.cartsize) + ' ' + str(self.cartsize))
-            for elem in tree.iterfind('worldbody/body/body/geom'):
-                # elem.set('fromto', "0 0 0 0.001 0 " + str(self.length))
-                elem.set('size', str(self.polesize)+" 0.068")
-
-    def _reset(self, new=True):
-        if new:
-            self.randomize_env()
-        return super(RandomPolesizeInvertedPendulum, self)._reset(new)
-
+        return [self.length, self.cartsize]
+    
     @property
-    def parameters(self):
-        parameters = super(RandomPolesizeInvertedPendulum, self).parameters
-        parameters.update({'pole-size': self.polesize, })
-        return parameters
-
-
-class RandomPolesizeInvertedPendulumEval(RoboschoolXMLModifierMixin, ModifiableRoboschoolInvertedPendulum):
-    # def randomize_env(self): # random pole size
-    #     self.polesize = self.np_random.uniform(self.RANDOM_LOWER_POLE_SIZE, self.RANDOM_UPPER_POLE_SIZE)
-    #     with self.modify_xml('inverted_pendulum.xml') as tree:
-    #         for elem in tree.iterfind('worldbody/body/body/geom'):
-    #             elem.set('size', str(self.polesize)+" 0.068")
-    def set_envparam(self, *args):
-        self.polesize = args[0]
-        with self.modify_xml('inverted_pendulum.xml') as tree:
-            for elem in tree.iterfind('worldbody/body/body/geom'):
-                elem.set('size', str(self.polesize)+" 0.068")
-
-    def _reset(self, new=True):
-        if new:
-            with self.modify_xml('inverted_pendulum.xml') as tree:
-                for elem in tree.iterfind('worldbody/body/body/geom'):
-                    elem.set('size', str(self.polesize) + " 0.068")
-        return super(RandomPolesizeInvertedPendulumEval, self)._reset(new)
-
-    @property
-    def parameters(self):
-        parameters = super(RandomPolesizeInvertedPendulumEval, self).parameters
-        parameters.update({'pole-size': self.polesize, })
-        return parameters
-
-
-# random pole len
-class RandomPolelenInvertedPendulum(RoboschoolXMLModifierMixin, ModifiableRoboschoolInvertedPendulum):
-    def randomize_env(self):  # random pole size
-        # self.cartsize = self.np_random.uniform(self.RANDOM_LOWER_CART_SIZE, self.RANDOM_UPPER_CART_SIZE)
-        # self.length = self.np_random.uniform(self.RANDOM_LOWER_POLE_LENGTH, self.RANDOM_UPPER_POLE_LENGTH)
-
-        # self.friction = self.np_random.uniform(self.RANDOM_LOWER_FRICTION, self.RANDOM_UPPER_FRICTION)
-        # self.power = self.np_random.uniform(self.RANDOM_LOWER_POWER, self.RANDOM_UPPER_POWER)
-        self.length = self.np_random.uniform(
-            self.RANDOM_LOWER_POLE_LENGTH, self.RANDOM_UPPER_POLE_LENGTH)
-
-        with self.modify_xml('inverted_pendulum.xml') as tree:
-            # for elem in tree.iterfind('worldbody/body/geom'):
-            #     elem.set('size', str(self.cartsize) + ' ' + str(self.cartsize))
-            for elem in tree.iterfind('worldbody/body/body/geom'):
-                elem.set('fromto', "0 0 0 0.001 0 " + str(self.length))
-                # elem.set('size', str(self.polesize)+" 0.068")
-
-    def _reset(self, new=True):
-        if new:
-            self.randomize_env()
-        return super(RandomPolelenInvertedPendulum, self)._reset(new)
-
-    @property
-    def parameters(self):
-        parameters = super(RandomPolelenInvertedPendulum, self).parameters
-        parameters.update({'length': self.length, })
-        return parameters
-
-
-class RandomPolelenInvertedPendulumEval(RoboschoolXMLModifierMixin, ModifiableRoboschoolInvertedPendulum):
-    # def randomize_env(self): # random pole size
-    #     self.polesize = self.np_random.uniform(self.RANDOM_LOWER_POLE_SIZE, self.RANDOM_UPPER_POLE_SIZE)
-    #     with self.modify_xml('inverted_pendulum.xml') as tree:
-    #         for elem in tree.iterfind('worldbody/body/body/geom'):
-    #             elem.set('size', str(self.polesize)+" 0.068")
-    def set_envparam(self, *args):
-        self.length = args[0]
-        with self.modify_xml('inverted_pendulum.xml') as tree:
-            for elem in tree.iterfind('worldbody/body/body/geom'):
-                elem.set('fromto', "0 0 0 0.001 0 " + str(self.length))
-
-    def _reset(self, new=True):
-        if new:
-            with self.modify_xml('inverted_pendulum.xml') as tree:
-                for elem in tree.iterfind('worldbody/body/body/geom'):
-                    elem.set('fromto', "0 0 0 0.001 0 " + str(self.length))
-        return super(RandomPolelenInvertedPendulumEval, self)._reset(new)
-
-    @property
-    def parameters(self):
-        parameters = super(RandomPolelenInvertedPendulumEval, self).parameters
-        parameters.update({'length': self.length, })
-        return parameters
-
-
-# consider 3d environment parameters
-class RandomNormalInvertedPendulum3DEnvParam(RoboschoolXMLModifierMixin, ModifiableRoboschoolInvertedPendulum):
-    def randomize_env(self):
-        self.cartsize = self.np_random.uniform(
-            self.RANDOM_LOWER_CART_SIZE, self.RANDOM_UPPER_CART_SIZE)
-        self.length = self.np_random.uniform(
-            self.RANDOM_LOWER_POLE_LENGTH, self.RANDOM_UPPER_POLE_LENGTH)
-        # self.friction = self.np_random.uniform(self.RANDOM_LOWER_FRICTION, self.RANDOM_UPPER_FRICTION)
-        # self.power = self.np_random.uniform(self.RANDOM_LOWER_POWER, self.RANDOM_UPPER_POWER)
-        self.polesize = self.np_random.uniform(
-            self.RANDOM_LOWER_POLE_SIZE, self.RANDOM_UPPER_POLE_SIZE)
-
-        with self.modify_xml('inverted_pendulum.xml') as tree:
-            for elem in tree.iterfind('worldbody/body/geom'):
-                elem.set('size', str(self.cartsize) + ' ' + str(self.cartsize))
-            for elem in tree.iterfind('worldbody/body/body/geom'):
-                elem.set('fromto', "0 0 0 0.001 0 " + str(self.length))
-                elem.set('size', str(self.polesize)+" 0.068")
-
-    def _reset(self, new=True):
-        if new:
-            self.randomize_env()
-        return super(RandomNormalInvertedPendulum3DEnvParam, self)._reset(new)
-
-    @property
-    def parameters(self):
-        parameters = super(
-            RandomNormalInvertedPendulum3DEnvParam, self).parameters
-        parameters.update(
-            {'length': self.length, 'pole-size': self.polesize, 'cart-size': self.cartsize})
-        return parameters
-
-
-class RandomNormalInvertedPendulum3DParamEvaluate(RoboschoolXMLModifierMixin, ModifiableRoboschoolInvertedPendulum):
-
-    def set_envparam(self, *args):
-        print(args)
-        self.length = args[0]
-        self.cartsize = args[1]
-        self.polesize = args[2]
-
-        with self.modify_xml('inverted_pendulum.xml') as tree:
-
-            for elem in tree.iterfind('worldbody/body/geom'):
-                elem.set('size', str(self.cartsize) + ' ' + str(self.cartsize))
-            for elem in tree.iterfind('worldbody/body/body/geom'):
-                elem.set('fromto', "0 0 0 0.001 0 " + str(self.length))
-                elem.set('size', str(self.polesize)+" 0.068")
-
-    def _reset(self, new=True):
-        if new:
-            # self.randomize_env()
-            print('==============in invertedpendulum reset ==========')
-            print(self.length)
-            print(self.cartsize)
-            print(self.polesize)
-            with self.modify_xml('inverted_pendulum.xml') as tree:
-                for elem in tree.iterfind('worldbody/body/geom'):
-                    elem.set('size', str(self.cartsize) +
-                             ' ' + str(self.cartsize))
-                for elem in tree.iterfind('worldbody/body/body/geom'):
-                    elem.set('fromto', "0 0 0 0.001 0 " + str(self.length))
-                    elem.set('size', str(self.polesize)+" 0.068")
-
-        return super(RandomNormalInvertedPendulum3DParamEvaluate, self)._reset(new)
-
-    @property
-    def parameters(self):
-        parameters = super(
-            RandomNormalInvertedPendulum3DParamEvaluate, self).parameters
-        parameters.update({'length': self.length, 'cart-size': self.cartsize})
-
-
-# consider 4d environment parameters
-class RandomNormalInvertedPendulum4DEnvParam(RoboschoolXMLModifierMixin, ModifiableRoboschoolInvertedPendulum):
-    def randomize_env(self):
-        self.cartsize = self.np_random.uniform(
-            self.RANDOM_LOWER_CART_SIZE, self.RANDOM_UPPER_CART_SIZE)
-        self.length = self.np_random.uniform(
-            self.RANDOM_LOWER_POLE_LENGTH, self.RANDOM_UPPER_POLE_LENGTH)
-        # self.friction = self.np_random.uniform(self.RANDOM_LOWER_FRICTION, self.RANDOM_UPPER_FRICTION)
-        # self.power = self.np_random.uniform(self.RANDOM_LOWER_POWER, self.RANDOM_UPPER_POWER)
-        self.polesize = self.np_random.uniform(
-            self.RANDOM_LOWER_POLE_SIZE, self.RANDOM_UPPER_POLE_SIZE)
-        self.railsize = self.np_random.uniform(
-            self.RANDOM_LOWER_RAIL_SIZE, self.RANDOM_UPPER_RAIL_SIZE)
-
-        with self.modify_xml('inverted_pendulum.xml') as tree:
-            for elem in tree.iterfind('worldbody/geom'):
-                # print(elem.get('name'))
-                elem.set('size', str(self.railsize)+" 2")
-            for elem in tree.iterfind('worldbody/body/geom'):
-                elem.set('size', str(self.cartsize) + ' ' + str(self.cartsize))
-            for elem in tree.iterfind('worldbody/body/body/geom'):
-                elem.set('fromto', "0 0 0 '0.001 0 " + str(self.length))
-                elem.set('size', str(self.polesize)+" 0.068")
-
-    def _reset(self, new=True):
-        if new:
-            self.randomize_env()
-        return super(RandomNormalInvertedPendulum4DEnvParam, self)._reset(new)
-
-    @property
-    def parameters(self):
-        parameters = super(
-            RandomNormalInvertedPendulum4DEnvParam, self).parameters
-        parameters.update(
-            {'length': self.length, 'pole-size': self.polesize, 'cart-size': self.cartsize})
-        return parameters
-
-
-class RandomNormalInvertedPendulum4DParamEvaluate(RoboschoolXMLModifierMixin, ModifiableRoboschoolInvertedPendulum):
-
-    def set_envparam(self, *args):
-        print(args)
-        self.length = args[0]
-        self.cartsize = args[1]
-        self.polesize = args[2]
-        self.railsize = args[3]
-
-        with self.modify_xml('inverted_pendulum.xml') as tree:
-            for elem in tree.iterfind('worldbody/geom'):
-                # print(elem.get('name'))
-                elem.set('size', str(self.railsize)+" 2")
-            for elem in tree.iterfind('worldbody/body/geom'):
-                elem.set('size', str(self.cartsize) + ' ' + str(self.cartsize))
-            for elem in tree.iterfind('worldbody/body/body/geom'):
-                elem.set('fromto', "0 0 0 0.001 0 " + str(self.length))
-                elem.set('size', str(self.polesize)+" 0.068")
-
-    def _reset(self, new=True):
-        if new:
-            # self.randomize_env()
-            print('==============in invertedpendulum reset ==========')
-            print(self.length)
-            print(self.cartsize)
-            print(self.polesize)
-            with self.modify_xml('inverted_pendulum.xml') as tree:
-                for elem in tree.iterfind('worldbody/geom'):
-                    # print(elem.get('name'))
-                    elem.set('size', str(self.railsize)+" 2")
-                for elem in tree.iterfind('worldbody/body/geom'):
-                    elem.set('size', str(self.cartsize) +
-                             ' ' + str(self.cartsize))
-                for elem in tree.iterfind('worldbody/body/body/geom'):
-                    elem.set('fromto', "0 0 0 0.001 0 " + str(self.length))
-                    elem.set('size', str(self.polesize)+" 0.068")
-
-        return super(RandomNormalInvertedPendulum4DParamEvaluate, self)._reset(new)
-
-    @property
-    def parameters(self):
-        parameters = super(
-            RandomNormalInvertedPendulum4DParamEvaluate, self).parameters
-        parameters.update({'length': self.length, 'cart-size': self.cartsize})
-
-
-class RandomNormalInvertedPendulumEvaluate(RoboschoolXMLModifierMixin, ModifiableRoboschoolInvertedPendulum):
-
-    def set_envparam(self, cartsize, length):
-
-        self.length = length
-        self.cartsize = cartsize
-
-        with self.modify_xml('inverted_pendulum.xml') as tree:
-            for elem in tree.iterfind('worldbody/body/geom'):
-                elem.set('size', str(self.cartsize) + ' ' + str(self.cartsize))
-            for elem in tree.iterfind('worldbody/body/body/geom'):
-                elem.set('fromto', "0 0 0 0.001 0 " + str(self.length))
-
-    def _reset(self, new=True):
-        if new:
-            # self.randomize_env()
-            print('==============in invertedpendulum reset ==========')
-            print(self.length)
-            print(self.cartsize)
-            with self.modify_xml('inverted_pendulum.xml') as tree:
-                for elem in tree.iterfind('worldbody/body/geom'):
-                    elem.set('size', str(self.cartsize) +
-                             ' ' + str(self.cartsize))
-                for elem in tree.iterfind('worldbody/body/body/geom'):
-                    elem.set('fromto', "0 0 0 0.001 0 " + str(self.length))
-
-        return super(RandomNormalInvertedPendulumEvaluate, self)._reset(new)
-
-    @property
-    def parameters(self):
-        parameters = super(
-            RandomNormalInvertedPendulumEvaluate, self).parameters
-        parameters.update({'length': self.length, 'cart-size': self.cartsize})
+    def lower_upper_bound(self):
+        return [self.RANDOM_LOWER_POLE_LENGTH, self.RANDOM_UPPER_POLE_LENGTH,
+                self.RANDOM_LOWER_CART_SIZE, self.RANDOM_UPPER_CART_SIZE]
 
 
 # =========== Ant ================
@@ -497,12 +192,8 @@ class ModifiableRoboschoolAnt(RoboschoolAnt, RoboschoolTrackDistSuccessMixin):
     RANDOM_LOWER_FOOTLEN = 0.1
     RANDOM_UPPER_FOOTLEN = 1.8
 
-    def _reset(self, new=True):
+    def _reset(self):
         return super(ModifiableRoboschoolAnt, self)._reset()
-
-    @property
-    def parameters(self):
-        return {'id': self.spec.id, }
 
 
 class RandomNormalAnt(RoboschoolXMLModifierMixin, ModifiableRoboschoolAnt):
@@ -521,25 +212,24 @@ class RandomNormalAnt(RoboschoolXMLModifierMixin, ModifiableRoboschoolAnt):
     def _reset(self, new=True):
         if new:
             self.randomize_env()
-        return super(RandomNormalAnt, self)._reset(new)
+        return super(RandomNormalAnt, self)._reset()
 
     @property
     def parameters(self):
-        parameters = super(RandomNormalAnt, self).parameters
-        parameters.update(
-            {'density': self.density, 'friction': self.friction, })
-        return parameters
+        return [self.density, self.friction]
+    
+    @property
+    def lower_upper_bound(self):
+        return [self.RANDOM_LOWER_DENSITY, self.RANDOM_UPPER_DENSITY,
+                self.RANDOM_LOWER_FRICTION, self.RANDOM_UPPER_FRICTION]
 
 
 class RandomNormalFDAnt(RoboschoolXMLModifierMixin, ModifiableRoboschoolAnt):
     def randomize_env(self):
-        # self.density = self.np_random.uniform(self.RANDOM_LOWER_DENSITY, self.RANDOM_UPPER_DENSITY)
         self.friction = self.np_random.uniform(
             self.RANDOM_LOWER_FRICTION, self.RANDOM_UPPER_FRICTION)
         self.damping = self.np_random.uniform(
             self.RANDOM_LOWER_DAMPING, self.RANDOM_UPPER_DAMPING)
-
-        # self.power = self.np_random.uniform(self.RANDOM_LOWER_POWER, self.RANDOM_UPPER_POWER)
 
         with self.modify_xml('ant.xml') as tree:
             for elem in tree.iterfind('default/joint'):
@@ -614,12 +304,8 @@ class ModifiableRoboschoolHumanoid(RoboschoolHumanoid, RoboschoolTrackDistSucces
     EXTREME_LOWER_FRICTION = 0.2
     EXTREME_UPPER_FRICTION = 1.4
 
-    def _reset(self, new=True):
+    def _reset(self):
         return super(ModifiableRoboschoolHumanoid, self)._reset()
-
-    @property
-    def parameters(self):
-        return {'id': self.spec.id, }
 
 
 class RandomNormalHumanoid(RoboschoolXMLModifierMixin, ModifiableRoboschoolHumanoid):
@@ -638,14 +324,16 @@ class RandomNormalHumanoid(RoboschoolXMLModifierMixin, ModifiableRoboschoolHuman
     def _reset(self, new=True):
         if new:
             self.randomize_env()
-        return super(RandomNormalHumanoid, self)._reset(new)
+        return super(RandomNormalHumanoid, self)._reset()
 
     @property
     def parameters(self):
-        parameters = super(RandomNormalHumanoid, self).parameters
-        parameters.update(
-            {'density': self.density, 'friction': self.friction, })
-        return parameters
+        return [self.density, self.friction]
+    
+    @property
+    def lower_upper_bound(self):
+        return [self.RANDOM_LOWER_DENSITY, self.RANDOM_UPPER_DENSITY,
+                self.RANDOM_LOWER_FRICTION, self.RANDOM_UPPER_FRICTION]
 
 
 class RandomFrictionHumanoid(RoboschoolXMLModifierMixin, ModifiableRoboschoolHumanoid):
@@ -700,7 +388,7 @@ class RandomFrictionHumanoidEval(RoboschoolXMLModifierMixin, ModifiableRoboschoo
 
 
 # ================ Walker2d =====================
-class ModifiableRoboschoolWalker2d(RoboschoolWalker2d, RoboschoolTrackDistSuccessMixin):
+class ModifiableRoboschoolWalker2d(RoboschoolWalker2d, RoboschoolXMLModifierMixin, RoboschoolTrackDistSuccessMixin):
     RANDOM_LOWER_DENSITY = 750
     RANDOM_UPPER_DENSITY = 1250
     EXTREME_LOWER_DENSITY = 500
@@ -716,54 +404,42 @@ class ModifiableRoboschoolWalker2d(RoboschoolWalker2d, RoboschoolTrackDistSucces
     # EXTREME_LOWER_POWER = 0.5
     # EXTREME_UPPER_POWER = 1.3
 
+    density, friction = 1000, 0.8
+    sampler = EnvParamSampler(param_start=[RANDOM_LOWER_DENSITY, RANDOM_LOWER_FRICTION],
+                              param_end=[RANDOM_UPPER_DENSITY, RANDOM_UPPER_FRICTION])
+
     def _reset(self):
-        return super(ModifiableRoboschoolWalker2d, self)._reset()
-
-
-class RandomNormalWalker2d(RoboschoolXMLModifierMixin, ModifiableRoboschoolWalker2d):
-    def randomize_env(self):
-        self.density = self.np_random.uniform(
-            self.RANDOM_LOWER_DENSITY, self.RANDOM_UPPER_DENSITY)
-        self.friction = self.np_random.uniform(
-            self.RANDOM_LOWER_FRICTION, self.RANDOM_UPPER_FRICTION)
-
         with self.modify_xml('walker2d.xml') as tree:
             for elem in tree.iterfind('default/geom'):
                 elem.set('density', str(self.density) + ' .1 .1')
             for elem in tree.iterfind('default/geom'):
                 elem.set('friction', str(self.friction) + ' .1 .1')
+        return super(ModifiableRoboschoolWalker2d, self)._reset()
 
-    def _reset(self, new=True):
-        if new:
-            self.randomize_env()
-        return super(RandomNormalWalker2d, self)._reset()
+    def set_envparam(self, new_density, new_friction):
+        self.density = new_density
+        self.friction = new_friction
 
     @property
     def parameters(self):
         return [self.density, self.friction]
-    
+
     @property
     def lower_upper_bound(self):
         return [self.RANDOM_LOWER_DENSITY, self.RANDOM_UPPER_DENSITY,
                 self.RANDOM_LOWER_FRICTION, self.RANDOM_UPPER_FRICTION]
 
 
-class RandomNormalWalker2dEvaluate(RoboschoolXMLModifierMixin, ModifiableRoboschoolWalker2d):
-    def set_envparam(self, density, friction):
-        # 测试时不需要多进程，所以可以直接操作环境
-        # 先设置参数，再进行reset
-        self.density = density
-        self.friction = friction
-        print('==============in reset ==========')
-        print(self.density, self.friction)
-        with self.modify_xml('walker2d.xml') as tree:
-            for elem in tree.iterfind('default/geom'):
-                elem.set('density', str(self.density) + ' .1 .1')
-            for elem in tree.iterfind('default/geom'):
-                elem.set('friction', str(self.friction) + ' .1 .1')
+class UniformWalker2d(ModifiableRoboschoolWalker2d):
+    def _reset(self, new=True):
+        self.density, self.friction = self.sampler.uniform_sample().squeeze()
+        return super(UniformWalker2d, self)._reset()
 
-    def _reset(self):
-        return super(RandomNormalWalker2dEvaluate, self)._reset()
+
+class GaussianWalker2d(ModifiableRoboschoolWalker2d):
+    def _reset(self, new=True):
+        self.density, self.friction = self.sampler.gaussian_sample().squeeze()
+        return super(GaussianWalker2d, self)._reset()
 
 
 # ============== Half Cheetah =================
@@ -785,12 +461,8 @@ class ModifiableRoboschoolHalfCheetah(RoboschoolHalfCheetah, RoboschoolTrackDist
     EXTREME_LOWER_POWER = 0.5
     EXTREME_UPPER_POWER = 1.3
 
-    def _reset(self, new=True):
+    def _reset(self):
         return super(ModifiableRoboschoolHalfCheetah, self)._reset()
-
-    @property
-    def parameters(self):
-        return {'id': self.spec.id, }
 
 
 class StrongHalfCheetah(ModifiableRoboschoolHalfCheetah):
@@ -1000,14 +672,11 @@ class RandomSlipperyJointsHalfCheetah(RoboschoolXMLModifierMixin, ModifiableRobo
 
 
 class RandomNormalHalfCheetah(RoboschoolXMLModifierMixin, ModifiableRoboschoolHalfCheetah):
-
     def randomize_env(self):
         self.density = self.np_random.uniform(
             self.RANDOM_LOWER_DENSITY, self.RANDOM_UPPER_DENSITY)
         self.friction = self.np_random.uniform(
             self.RANDOM_LOWER_FRICTION, self.RANDOM_UPPER_FRICTION)
-        self.power = self.np_random.uniform(
-            self.RANDOM_LOWER_POWER, self.RANDOM_UPPER_POWER)
 
         with self.modify_xml('half_cheetah.xml') as tree:
             for elem in tree.iterfind('worldbody/body/geom'):
@@ -1018,18 +687,19 @@ class RandomNormalHalfCheetah(RoboschoolXMLModifierMixin, ModifiableRoboschoolHa
     def _reset(self, new=True):
         if new:
             self.randomize_env()
-        return super(RandomNormalHalfCheetah, self)._reset(new)
+        return super(RandomNormalHalfCheetah, self)._reset()
 
     @property
     def parameters(self):
-        parameters = super(RandomNormalHalfCheetah, self).parameters
-        parameters.update(
-            {'power': self.power, 'density': self.density, 'friction': self.friction, })
-        return parameters
+        return [self.density, self.friction]
+
+    @property
+    def lower_upper_bound(self):
+        return [self.RANDOM_LOWER_DENSITY, self.RANDOM_UPPER_DENSITY,
+                self.RANDOM_LOWER_FRICTION, self.RANDOM_UPPER_FRICTION]
 
 
 class RandomNormalHalfcheetahEvaluate(RoboschoolXMLModifierMixin, ModifiableRoboschoolHalfCheetah):
-
     def set_envparam(self, density, friction):
         self.density = density
         self.friction = friction
@@ -1118,12 +788,8 @@ class ModifiableRoboschoolHopper(RoboschoolHopper, RoboschoolTrackDistSuccessMix
     EXTREME_LOWER_POWER = 0.4
     EXTREME_UPPER_POWER = 1.1
 
-    def _reset(self, new=True):
+    def _reset(self):
         return super(ModifiableRoboschoolHopper, self)._reset()
-
-    @property
-    def parameters(self):
-        return {'id': self.spec.id, }
 
 
 class StrongHopper(ModifiableRoboschoolHopper):
@@ -1398,7 +1064,6 @@ class RandomExtremeSlipperyJointsHopperEval(RoboschoolXMLModifierMixin, Modifiab
 
 
 class RandomNormalHopperEvaluate(RoboschoolXMLModifierMixin, ModifiableRoboschoolHopper):
-
     def set_envparam(self, density, friction):
         self.density = density
         self.friction = friction
@@ -1432,14 +1097,11 @@ class RandomNormalHopperEvaluate(RoboschoolXMLModifierMixin, ModifiableRoboschoo
 
 
 class RandomNormalHopper(RoboschoolXMLModifierMixin, ModifiableRoboschoolHopper):
-
     def randomize_env(self):
         self.density = self.np_random.uniform(
             self.RANDOM_LOWER_DENSITY, self.RANDOM_UPPER_DENSITY)
         self.friction = self.np_random.uniform(
             self.RANDOM_LOWER_FRICTION, self.RANDOM_UPPER_FRICTION)
-        self.power = self.np_random.uniform(
-            self.RANDOM_LOWER_POWER, self.RANDOM_UPPER_POWER)
         with self.modify_xml('hopper.xml') as tree:
             for elem in tree.iterfind('worldbody/body/geom'):
                 elem.set('density', str(self.density))
@@ -1449,14 +1111,16 @@ class RandomNormalHopper(RoboschoolXMLModifierMixin, ModifiableRoboschoolHopper)
     def _reset(self, new=True):
         if new:
             self.randomize_env()
-        return super(RandomNormalHopper, self)._reset(new)
+        return super(RandomNormalHopper, self)._reset()
 
     @property
     def parameters(self):
-        parameters = super(RandomNormalHopper, self).parameters
-        parameters.update(
-            {'power': self.power, 'density': self.density, 'friction': self.friction, })
-        return parameters
+        return [self.density, self.friction]
+    
+    @property
+    def lower_upper_bound(self):
+        return [self.RANDOM_LOWER_DENSITY, self.RANDOM_UPPER_DENSITY,
+                self.RANDOM_LOWER_FRICTION, self.RANDOM_UPPER_FRICTION]
 
 
 class RandomExtremeHopper(RoboschoolXMLModifierMixin, ModifiableRoboschoolHopper):

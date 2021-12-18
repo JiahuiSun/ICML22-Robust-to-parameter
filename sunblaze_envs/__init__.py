@@ -99,8 +99,15 @@ register(
 )
 
 register(
-    id='SunblazeWalker2dRandomNormal-v0',
-    entry_point='sunblaze_envs.mujoco:RandomNormalWalker2d',
+    id='SunblazeWalker2dUniform-v0',
+    entry_point='sunblaze_envs.mujoco:UniformWalker2d',
+    max_episode_steps=1000,
+    reward_threshold=3800.0,
+)
+
+register(
+    id='SunblazeWalker2dGaussian-v0',
+    entry_point='sunblaze_envs.mujoco:GaussianWalker2d',
     max_episode_steps=1000,
     reward_threshold=3800.0,
 )
