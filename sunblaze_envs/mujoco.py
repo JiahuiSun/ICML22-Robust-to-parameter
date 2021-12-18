@@ -716,37 +716,18 @@ class ModifiableRoboschoolWalker2d(RoboschoolWalker2d, RoboschoolTrackDistSucces
     # EXTREME_LOWER_POWER = 0.5
     # EXTREME_UPPER_POWER = 1.3
 
-    def _reset(self, new=True):
+    def _reset(self):
         return super(ModifiableRoboschoolWalker2d, self)._reset()
-
-    @property
-    def parameters(self):
-        return {'id': self.spec.id, }
 
 
 class RandomNormalWalker2d(RoboschoolXMLModifierMixin, ModifiableRoboschoolWalker2d):
-    def set_density(self, density):
-        self.density = density
-        with self.modify_xml('walker2d.xml') as tree:
-            for elem in tree.iterfind('default/geom'):
-                elem.set('density', str(self.density) + ' .1 .1')
-
-    def set_friction(self, friction):
-        self.friction = friction
-        with self.modify_xml('walker2d.xml') as tree:
-            for elem in tree.iterfind('default/geom'):
-                elem.set('friction', str(self.friction) + ' .1 .1')
-
     def randomize_env(self):
-        # TODO: 就是这里！！！修改参数
         self.density = self.np_random.uniform(
             self.RANDOM_LOWER_DENSITY, self.RANDOM_UPPER_DENSITY)
         self.friction = self.np_random.uniform(
             self.RANDOM_LOWER_FRICTION, self.RANDOM_UPPER_FRICTION)
 
         with self.modify_xml('walker2d.xml') as tree:
-            # for elem in tree.iterfind('worldbody/body/geom'):
-            #     elem.set('density', str(self.density))
             for elem in tree.iterfind('default/geom'):
                 elem.set('density', str(self.density) + ' .1 .1')
             for elem in tree.iterfind('default/geom'):
@@ -755,51 +736,34 @@ class RandomNormalWalker2d(RoboschoolXMLModifierMixin, ModifiableRoboschoolWalke
     def _reset(self, new=True):
         if new:
             self.randomize_env()
-        return super(RandomNormalWalker2d, self)._reset(new)
+        return super(RandomNormalWalker2d, self)._reset()
 
     @property
     def parameters(self):
-        parameters = super(RandomNormalWalker2d, self).parameters
-        parameters.update(
-            {'density': self.density, 'friction': self.friction, })
-        return parameters
+        return [self.density, self.friction]
+    
+    @property
+    def lower_upper_bound(self):
+        return [self.RANDOM_LOWER_DENSITY, self.RANDOM_UPPER_DENSITY,
+                self.RANDOM_LOWER_FRICTION, self.RANDOM_UPPER_FRICTION]
 
 
 class RandomNormalWalker2dEvaluate(RoboschoolXMLModifierMixin, ModifiableRoboschoolWalker2d):
-
     def set_envparam(self, density, friction):
+        # 测试时不需要多进程，所以可以直接操作环境
+        # 先设置参数，再进行reset
         self.density = density
         self.friction = friction
-
+        print('==============in reset ==========')
+        print(self.density, self.friction)
         with self.modify_xml('walker2d.xml') as tree:
-            # for elem in tree.iterfind('worldbody/body/geom'):
-            #     elem.set('density', str(self.density))
             for elem in tree.iterfind('default/geom'):
                 elem.set('density', str(self.density) + ' .1 .1')
             for elem in tree.iterfind('default/geom'):
                 elem.set('friction', str(self.friction) + ' .1 .1')
 
-    def _reset(self, new=True):
-        if new:
-            # self.randomize_env()
-            print('==============in reset ==========')
-            print(self.density)
-            print(self.friction)
-            with self.modify_xml('walker2d.xml') as tree:
-                # for elem in tree.iterfind('worldbody/body/geom'):
-                #     elem.set('density', str(self.density))
-                for elem in tree.iterfind('default/geom'):
-                    elem.set('density', str(self.density) + ' .1 .1')
-                for elem in tree.iterfind('default/geom'):
-                    elem.set('friction', str(self.friction) + ' .1 .1')
-
-        return super(RandomNormalWalker2dEvaluate, self)._reset(new)
-
-    @property
-    def parameters(self):
-        parameters = super(RandomNormalWalker2dEvaluate, self).parameters
-        parameters.update(
-            {'density': self.density, 'friction': self.friction, })
+    def _reset(self):
+        return super(RandomNormalWalker2dEvaluate, self)._reset()
 
 
 # ============== Half Cheetah =================

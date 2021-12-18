@@ -4,23 +4,17 @@ import joblib
 import numpy as np
 import os.path as osp
 import pickle
-from collections import deque
 import tensorflow as tf
 from tensorboardX import SummaryWriter
 
 from examples.baselines import logger
 from examples.baselines.common import explained_variance
-from examples.ppo2_baselines.ppo2_episodes import constfn, sf01
+from examples.ppo2_baselines.ppo2_episodes import constfn
 from examples.ppo2_baselines.ppo2_episodes import Runner as BaseRunner
-from examples.MRPO import base
-from examples.baselines import bench
-from examples.baselines.common.vec_env.dummy_vec_env import DummyVecEnv
-from examples.baselines.common.vec_env.vec_normalize import VecNormalize
 
 
 class MRPOModel(object):
-    def __init__(self, *, policy, ob_space, ac_space, nbatch_act, nbatch_train,
-                nsteps, ent_coef, vf_coef, max_grad_norm):
+    def __init__(self, policy, ob_space, ac_space, nbatch_act, ent_coef, vf_coef, max_grad_norm):
         sess = tf.get_default_session()
 
         act_model = policy(sess, ob_space, ac_space, nbatch_act, 1, reuse=False)
@@ -101,62 +95,73 @@ class MRPOModel(object):
         self.initial_state = act_model.initial_state
         self.save = save
         self.load = load
-        tf.global_variables_initializer().run(session=sess) #pylint: disable=E1101
+        tf.global_variables_initializer().run(session=sess)
+
 
 class MRPORunner(BaseRunner):
     """Modified the trajectory generator in PPO2 to follow EPOpt-e"""
     def __init__(self, env, model, nsteps, gamma, lam):
         super(MRPORunner, self).__init__(env=env, model=model, nsteps=nsteps, gamma=gamma, lam=lam)
         self.gamma_lam = gamma / (1-gamma)**2
-        # self.masses = [0.75, 0.80, 0.85, 0.875, 0.90, 0.925, 0.95, 1.0, 1.25]
-        # self.lengths = [0.75, 0.80, 0.85, 0.875, 0.90, 0.925, 0.95, 1.0, 1.25]
-        # self.masses = [0.75, 0.80, 0.85, 0.875, 0.90, 0.925, 0.95, 1.0, 1.25]
-        # self.lengths = [0.75, 0.80, 0.85, 0.875, 0.90, 0.925, 0.95, 1.0, 1.25]
-        # self.densities = [750, 800, 850, 900, 950, 1000, 1050, 1100, 1150, 1250]
-        # self.frictions = [0.5, 0.6, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0, 1.1]
-        # self.powers = [0.6, 0.9]
-        # self.env_num = len(self.densities) * len(self.frictions)
-
-    def run(self, *,
-            # EPOpt specific - could go in __init__ but epsilon is callable
-            paths, eps
-            ):
-        """Instead of doing a trajectory of nsteps (ie, "horizon"), do a
-        sample N "paths" and then return the bottom epsilon-percentile
-        """
-        n_mb_obs, n_mb_rewards, n_mb_actions, n_mb_values, n_mb_dones, n_mb_neglogpacs, n_mb_envparam, n_mb_bnobn = [[] for _ in range(paths)],\
-                            [[] for _ in range(paths)], [[] for _ in range(paths)], [[] for _ in range(paths)], [[] for _ in range(paths)], [[] for _ in range(paths)], [[] for _ in range(paths)], [[] for _ in range(paths)]
-        n_epinfos = [[] for _ in range(paths)]
-        mb_states = self.states
+        
+    def run(self, paths, eps, n_parallel=4):
+        n_mb_obs = [[] for _ in range(paths)]
+        n_mb_rewards = [[] for _ in range(paths)]
+        n_mb_actions = [[] for _ in range(paths)]
+        n_mb_values = [[] for _ in range(paths)]
+        n_mb_dones = [[] for _ in range(paths)]
+        n_mb_neglogpacs = [[] for _ in range(paths)]
+        n_mb_envparam = [[] for _ in range(paths)]
+        n_Jpi = np.zeros(paths, dtype=np.float)
+        n_Jlen = np.zeros(paths, dtype=np.float)
         num_episodes = 0
         self.dones = [True]
-        # 直接采样trajectory，每个trajectory应该对应着不同的参数
-        for N in range(paths):
-            mb_obs, mb_rewards, mb_actions, mb_values, mb_dones, mb_neglogpacs, epinfos, mb_enparam \
-                = n_mb_obs[N], n_mb_rewards[N], n_mb_actions[N], n_mb_values[N], n_mb_dones[N], n_mb_neglogpacs[N], \
-                  n_epinfos[N], n_mb_envparam[N]
-            # TODO: hard code
-            mb_enparam.append(self.env.envs[0].env.env.env.density)
-            mb_enparam.append(self.env.envs[0].env.env.env.friction)
-            # 这里就是仿真这个环境下的结果, collector
-            for _ in range(self.env.venv.envs[0].spec.max_episode_steps):
+
+        # 采样100个trajectory，每次并行20个，那么要重复5次，每次就要保存20条trajectory
+        n_times = paths // n_parallel
+        for N in range(n_times):
+            mb_obs, mb_rewards, mb_actions, mb_values, mb_dones, mb_neglogpacs = [], [], [], [], [], []
+            stop_time_idx = np.zeros(n_parallel, dtype=np.int)
+            Jpi = np.zeros(n_parallel, dtype=np.float)
+            Jlen = np.zeros(n_parallel, dtype=np.float)
+            for istep in range(self.env.venv.spec.max_episode_steps):
                 actions, values, self.states, neglogpacs = self.model.step(self.obs, self.states, self.dones)
                 mb_obs.append(self.obs.copy())
                 mb_actions.append(actions)
                 mb_values.append(values)
                 mb_neglogpacs.append(neglogpacs)
-                mb_dones.append(self.dones)
-                self.obs[:], rewards, self.dones, infos, self.obsbn[:] = self.env.step(actions)
 
-                # TODO: wocccc，训练时reward做了归一化，返回的reward不再是真正的reward的了
-                for info in infos:
-                    maybeepinfo = info.get('episode')
-                    if maybeepinfo: 
-                        epinfos.append(maybeepinfo)
+                self.obs[:], rewards, self.dones, infos, self.obsbn[:] = self.env.step(actions)
                 mb_rewards.append(rewards)
-                # Stop once single thread has finished an episode
-                if self.dones:  # ie [True]
+                mb_dones.append(self.dones)
+
+                # 当环境第一次遇到done时进行统计，非第一次就不计入了
+                for i, d in enumerate(self.dones):
+                    if d and stop_time_idx[i] == 0:
+                        stop_time_idx[i] = istep + 1
+                        Jpi[i] = infos[i]['episode']['r']
+                        Jlen[i] = infos[i]['episode']['l']
+                if all(stop_time_idx > 0):
                     break
+
+            params = self.env.get_params()
+            mb_obs = np.array(mb_obs)
+            mb_actions = np.array(mb_actions)
+            mb_rewards = np.array(mb_rewards)
+            mb_values = np.array(mb_values)
+            mb_dones = np.array(mb_dones)
+            mb_neglogpacs = np.array(mb_neglogpacs)
+            # 提取每个环境的trajectory
+            for i in range(n_parallel):
+                n_mb_obs[i+n_parallel*N] = mb_obs[:stop_time_idx[i], i]
+                n_mb_actions[i+n_parallel*N] = mb_actions[:stop_time_idx[i], i]
+                n_mb_rewards[i+n_parallel*N] = mb_rewards[:stop_time_idx[i], i]
+                n_mb_values[i+n_parallel*N] = mb_values[:stop_time_idx[i], i]
+                n_mb_dones[i+n_parallel*N] = mb_dones[:stop_time_idx[i], i]
+                n_mb_neglogpacs[i+n_parallel*N] = mb_neglogpacs[:stop_time_idx[i], i]
+                n_mb_envparam[i+n_parallel*N] = params[i]
+                n_Jpi[i+n_parallel*N] = Jpi[i]
+                n_Jlen[i+n_parallel*N] = Jlen[i]
 
         # Compute the worst epsilon paths and concatenate them
         episode_returns = np.array([sum(r) for r in n_mb_rewards]).squeeze()
@@ -171,34 +176,25 @@ class MRPORunner(BaseRunner):
             minidx = minidx_[0]
         else:
             minidx = minidx_
-        # 这个是最最最最差的环境的参数
         wst_envparam = n_mb_envparam[minidx]
 
+        # Trajectory selection
         mb_obs, mb_rewards, mb_actions, mb_values, mb_dones, mb_neglogpacs = [],[],[],[],[],[]
-        epinfos = []
-        # TODO: hard code, 这里就每个环境创建一个文件夹吧
+        lower_param1, upper_param1, lower_param2, upper_param2 = self.env.get_lower_upper_bound()
         envparam_normalizatio = np.zeros(shape=np.array(wst_envparam).shape)
-        envparam_normalizatio[0] = (self.env.envs[0].env.env.env.RANDOM_UPPER_DENSITY - self.env.envs[0].env.env.env.RANDOM_LOWER_DENSITY)*2
-        envparam_normalizatio[1] = (self.env.envs[0].env.env.env.RANDOM_UPPER_FRICTION - self.env.envs[0].env.env.env.RANDOM_LOWER_FRICTION) # *2can be tuned 
+        envparam_normalizatio[0] = (upper_param1 - lower_param1)*2
+        envparam_normalizatio[1] = (upper_param2 - lower_param2) # *2can be tuned 
 
-        # compute obj list
         return_cutoff = np.percentile(episode_returns, 10)
-        epinfos_percen10 = []
-        epinfos_all = []
         episode_returns_percen10 = []
         wst_percen_params_list = []
         wst_percen_idx_list = []
-
         # add worst 10% envs
         for N in range(paths):
-            # record average performance
-            epinfos_all.extend(n_epinfos[N])
-            # record 10% worst performance
             if episode_returns[N] <= return_cutoff:
-                epinfos_percen10.extend(n_epinfos[N])
-                episode_returns_percen10.extend([episode_returns[N]])
+                episode_returns_percen10.append(episode_returns[N])
                 wst_percen_params_list.append(n_mb_envparam[N])
-                wst_percen_idx_list.extend([N])
+                wst_percen_idx_list.append(N)
 
                 num_episodes += 1
                 # "cache" values to keep track of final ones
@@ -208,7 +204,6 @@ class MRPORunner(BaseRunner):
                 next_values = n_mb_values[N]
                 next_dones = n_mb_dones[N]
                 next_neglogpacs = n_mb_neglogpacs[N]
-                next_epinfos = n_epinfos[N]
                 # concatenate
                 mb_obs.extend(next_obs)
                 mb_rewards.extend(next_rewards)
@@ -216,20 +211,14 @@ class MRPORunner(BaseRunner):
                 mb_values.extend(next_values)
                 mb_dones.extend(next_dones)
                 mb_neglogpacs.extend(next_neglogpacs)
-                epinfos.extend(next_epinfos)
-                print('N:{}   return:{}'.format(N, next_epinfos[0]['r']))
 
-        # add trajectories that is choosed by their metric eps
+        # add trajectories that is chosen by their metric eps
         wst_percen_params_arr = np.array(wst_percen_params_list)
         for N in range(paths):
             envparam_comp_arr = (wst_percen_params_arr -  np.array(n_mb_envparam[N]))/ np.array(envparam_normalizatio)
-            # print(envparam_comp_arr)
             envparam_comp = np.sum(envparam_comp_arr, axis=1).__abs__()
-            # print(envparam_comp)
-            # TODO: 出现了，这这就是line9计算的值，收益 - eps * 参数差距
+            # 出现了，这这就是line9计算的值，收益 - eps * 参数差距
             objs = episode_returns[N] - eps * envparam_comp
-            # print(objs)
-            # print(episode_returns_percen10)
             if all(objs>episode_returns_percen10) and N not in wst_percen_idx_list:
                 num_episodes += 1
                 # "cache" values to keep track of final ones
@@ -239,7 +228,6 @@ class MRPORunner(BaseRunner):
                 next_values = n_mb_values[N]
                 next_dones = n_mb_dones[N]
                 next_neglogpacs = n_mb_neglogpacs[N]
-                next_epinfos = n_epinfos[N]
                 # concatenate
                 mb_obs.extend(next_obs)
                 mb_rewards.extend(next_rewards)
@@ -247,15 +235,12 @@ class MRPORunner(BaseRunner):
                 mb_values.extend(next_values)
                 mb_dones.extend(next_dones)
                 mb_neglogpacs.extend(next_neglogpacs)
-                epinfos.extend(next_epinfos)
-                print('N:{}   return:{}'.format(N, next_epinfos[0]['r']))
 
         total_steps = len(mb_rewards)
-        epremean_percentile10 = safemean([epinfo['r'] for epinfo in epinfos_percen10])
-        eprewmean_all = safemean([epinfo['r'] for epinfo in epinfos_all])
-        print('{} envs choosed'.format(num_episodes))
-        print('eprewmean_all:{}'.format(eprewmean_all))
-        print('epremean_percentile10:{}'.format(epremean_percentile10))
+        ratio = paths // 10
+        epremean_percentile10 = np.mean(np.partition(n_Jpi, ratio)[:ratio])
+        eprewmean_all = np.mean(n_Jpi)
+        avg_traj_len = np.mean(n_Jlen)
 
         #  batch of steps to batch of rollouts
         mb_obs = np.asarray(mb_obs, dtype=self.obs.dtype)
@@ -265,153 +250,123 @@ class MRPORunner(BaseRunner):
         mb_neglogpacs = np.asarray(mb_neglogpacs, dtype=np.float32)
         mb_dones = np.asarray(mb_dones, dtype=np.bool)
 
-        # We can't just use self.obs etc, because the last of the N paths
-        # may not be included in the update
-        last_values = self.model.value(self.obs, self.states, self.dones)  # value function
+        # GAE
+        last_obs = mb_obs[-n_parallel:]
+        last_done = mb_dones[-1]
+        last_values = self.model.value(last_obs, self.states, last_done)  # value function
+        last_values = last_values[-1]
         #  discount/bootstrap off value fn
         mb_returns = np.zeros_like(mb_rewards)
         mb_advs = np.zeros_like(mb_rewards)
         lastgaelam = 0
-
-        # Instead using nsteps, use the total number of steps in all kept trajectories
         for t in reversed(range(total_steps)):
-            #if t == self.nsteps - 1:
             if t == total_steps - 1:
-                nextnonterminal = 1.0 - self.dones
+                nextnonterminal = 1.0 - last_done
                 nextvalues = last_values
             else:
                 nextnonterminal = 1.0 - mb_dones[t+1]
                 nextvalues = mb_values[t+1]
-            delta = mb_rewards[t] + self.gamma * nextvalues * nextnonterminal - mb_values[t]  # eq.12
+            delta = mb_rewards[t] + self.gamma * nextvalues * nextnonterminal - mb_values[t]
             mb_advs[t] = lastgaelam = delta + self.gamma * self.lam * nextnonterminal * lastgaelam
 
         mb_returns = mb_advs + mb_values
-        return (*map(sf01, (mb_obs, mb_returns, mb_dones, mb_actions, mb_values, mb_neglogpacs)),
-            mb_states, epinfos, num_episodes, eprewmean_all, epremean_percentile10, np.array(episode_returns).squeeze()) 
+        return mb_obs, mb_returns, mb_dones, mb_actions, mb_values, mb_neglogpacs, self.states, num_episodes, eprewmean_all, epremean_percentile10, avg_traj_len
 
-def learn(*, policy, env, env_id, nsteps, total_episodes, ent_coef, lr,
-            vf_coef=0.5,  max_grad_norm=0.5, gamma=0.99, lam=0.95,
-            log_interval=10, nminibatches=4, noptepochs=4, cliprange=0.2,
-            save_interval=0, keep_all_ckpt=False,
-            paths=100, eps_start=1.0, eps_end=40, eps_raise=1.005   # EPOpt specific 1.005
-            ):
-    """Only difference here is that epsilon and N are specified and passed to
-    runner.run()
-    """
+
+def learn(policy, env, total_episodes=5e4, lr=3e-4, ncpu=4,
+        ent_coef=0.0, vf_coef=0.5, max_grad_norm=0.5, 
+        gamma=0.99, lam=0.95, log_interval=10, 
+        nminibatches=64, noptepochs=4, cliprange=0.2,
+        save_interval=0, keep_all_ckpt=False, paths=100, 
+        eps_start=1.0, eps_end=40, eps_raise=1.005):
     # Callable lr and cliprange don't work (at the moment) with the
     # total_episodes terminating condition
     if isinstance(lr, float):
         lr = constfn(lr)
     else:
         raise NotImplementedError
-        assert callable(lr)
     if isinstance(cliprange, float):
         cliprange = constfn(cliprange)
     else:
         raise NotImplementedError
-        assert callable(cliprange)
 
     total_episodes = int(total_episodes)
-    # nenvs = env.num_envs
-    nenvs = 1
+    nenvs = env.num_envs
+    # nenvs = 1
     ob_space = env.observation_space
     ac_space = env.action_space
-    nbatch = nenvs * nsteps
-    nbatch_train = nbatch // nminibatches
     eps = eps_start
 
-    make_model = lambda : MRPOModel(policy=policy, ob_space=ob_space,
-                    ac_space=ac_space, nbatch_act=nenvs, nbatch_train=nbatch_train,
-                    nsteps=nsteps, ent_coef=ent_coef, vf_coef=vf_coef,
-                    max_grad_norm=max_grad_norm)
+    make_model = lambda : MRPOModel(policy=policy, ob_space=ob_space, 
+        ac_space=ac_space, nbatch_act=nenvs, ent_coef=ent_coef, 
+        vf_coef=vf_coef, max_grad_norm=max_grad_norm)
     if save_interval and logger.get_dir():
         import cloudpickle
         with open(osp.join(logger.get_dir(), 'make_model.pkl'), 'wb') as fh:
             fh.write(cloudpickle.dumps(make_model))
 
     model = make_model()
-    runner = MRPORunner(env=env, model=model, nsteps=nsteps, gamma=gamma, lam=lam)
+    runner = MRPORunner(env=env, model=model, nsteps=0, gamma=gamma, lam=lam)
 
-    epinfobuf = deque(maxlen=100)
     tfirststart = time.time()
-
     update = 0
     episodes_so_far = 0
     old_savepath = None
-    eprewmean_all_arr = np.array([])
-    epremean_percentile10_arr = np.array([])
-    # 加日志
+    eprewmean_all_arr = []
+    epremean_percentile10_arr = []
     writer = SummaryWriter(logger.get_dir())
     while True:
         update += 1
         if episodes_so_far > total_episodes:
             break
 
-        assert nbatch % nminibatches == 0
-        nbatch_train = nbatch // nminibatches
-        tstart = time.time()
-        # frac = 1.0 - (update - 1.0) / nupdates
         frac = 1.0 - (update - 1.0) / total_episodes
         lrnow = lr(frac)
         cliprangenow = cliprange(frac)
         
-        # TODO: 应该跟tianshou类似，这里就是收集trajectory，下面是train
-        obs, returns, masks, actions, values, neglogpacs, states, epinfos, num_episodes, eprewmean_all, epremean_percentile10, \
-        episodes_returns = runner.run(paths=paths, eps=eps)  # pylint: disable=E0632
+        obs, returns, masks, actions, values, neglogpacs, states, num_episodes, eprewmean_all, epremean_percentile10, avg_traj_len = runner.run(paths=paths, eps=eps, n_parallel=ncpu)
+        assert num_episodes==np.sum(masks), (num_episodes, np.sum(masks))
+        episodes_so_far += num_episodes
 
         # if num_episodes>30:
         #     eps = eps_raise * eps
         eps = eps_raise * eps
         # eps = min(eps_end, eps_raise * eps)
 
-        eprewmean_all_arr = np.append(eprewmean_all_arr, eprewmean_all)
-        epremean_percentile10_arr = np.append(epremean_percentile10_arr, epremean_percentile10)
+        eprewmean_all_arr.append(eprewmean_all)
+        epremean_percentile10_arr.append(epremean_percentile10)
         writer.add_scalar('wst10', epremean_percentile10, update)
         writer.add_scalar('avg', eprewmean_all, update)
 
-        assert num_episodes==np.sum(masks), (num_episodes, np.sum(masks))
-        episodes_so_far += num_episodes
-
-        epinfobuf.extend(epinfos)
         mblossvals = []
         if states is None: # nonrecurrent version
-            inds = np.arange(nbatch)
-            # 看样子作者用了on-policy的训练方法，这个就是把buffer里的数据更新几遍的意思
+            n_batch = returns.shape[0] // nminibatches
+            inds = np.arange(returns.shape[0])
             for _ in range(noptepochs):
-                # Need to make sure that the entire set of trajectories is being passed to train()
-                # Since we only support nenvs=1, we can remove this loop
-                '''
                 np.random.shuffle(inds)
-                for start in range(0, nbatch, nbatch_train):
-                    end = start + nbatch_train
-                    mbinds = inds[start:end]
+                for i in range(n_batch):
+                    if i+1 == n_batch:
+                        mbinds = inds[i*nminibatches:]
+                    else:
+                        mbinds = inds[i*nminibatches:(i+1)*nminibatches]
                     slices = (arr[mbinds] for arr in (obs, returns, masks, actions, values, neglogpacs))
                     mblossvals.append(model.train(lrnow, cliprangenow, *slices))
-                '''
-                mblossvals.append(model.train(lrnow, cliprangenow, *(obs, returns, masks, actions, values, neglogpacs)))
         else: # recurrent version
             raise NotImplementedError("Use examples.epopt_lstm")
 
         lossvals = np.mean(mblossvals, axis=0)
-        tnow = time.time()
-        fps = int(nbatch / (tnow - tstart))
-
         # log
         if update % log_interval == 0 or update == 1:
             ev = explained_variance(values, returns)
-            # logger.logkv("serial_timesteps", update*nsteps)
-            logger.logkv("nupdates", update)
-            logger.logkv("total_episodes", episodes_so_far)
-            # logger.logkv("total_timesteps", update*nbatch)
+            logger.logkv('time_elapsed', time.time() - tfirststart)
+            logger.logkv("epoch", update)
+            logger.logkv("episodes_so_far", episodes_so_far)
             logger.logkv("envs choosed", num_episodes)
-            # logger.logkv("fps", fps)
             logger.logkv("eps", eps)
             logger.logkv("explained_variance", float(ev))
-            logger.logkv('eprewmean', safemean([epinfo['r'] for epinfo in epinfobuf]))
-            logger.logkv('eplenmean', safemean([epinfo['l'] for epinfo in epinfobuf]))
-            logger.logkv('all envs rew mean', eprewmean_all)
-            logger.logkv('10 percentile worst rew mean', epremean_percentile10)
-            logger.logkv('time_elapsed', tnow - tfirststart)
+            logger.logkv('eplenmean', avg_traj_len)
+            logger.logkv('avg_return', eprewmean_all)
+            logger.logkv('wst10_return', epremean_percentile10)
             for (lossval, lossname) in zip(lossvals, model.loss_names):
                 logger.logkv(lossname, lossval)
             logger.dumpkvs()
@@ -445,11 +400,7 @@ def learn(*, policy, env, env_id, nsteps, total_episodes, ent_coef, lr,
     env.close()
     # save data
     logdir = logger.get_dir()
-    filename1 = f'{logdir}/MRPO_{env_id}_avg.txt'
+    filename1 = f'{logdir}/avg.txt'
     np.savetxt(filename1, eprewmean_all_arr)
-    filename2 = f'{logdir}/MRPO_{env_id}_wst10.txt'
+    filename2 = f'{logdir}/wst10.txt'
     np.savetxt(filename2, epremean_percentile10_arr)
-
-
-def safemean(xs):
-    return np.nan if len(xs) == 0 else np.mean(xs)

@@ -20,6 +20,10 @@ def worker(remote, parent_remote, env_fn_wrappers):
                 remote.send([step_env(env, action) for env, action in zip(envs, data)])
             elif cmd == 'reset':
                 remote.send([env.reset() for env in envs])
+            elif cmd == 'parameters':
+                remote.send([env.unwrapped.parameters for env in envs])
+            elif cmd == 'lower_upper_bound':
+                remote.send(envs[0].unwrapped.lower_upper_bound)
             elif cmd == 'render':
                 remote.send([env.render(mode='rgb_array') for env in envs])
             elif cmd == 'close':
@@ -41,7 +45,7 @@ class SubprocVecEnv(VecEnv):
     VecEnv that runs multiple environments in parallel in subproceses and communicates with them via pipes.
     Recommended to use when num_envs > 1 and step() can be a bottleneck.
     """
-    def __init__(self, env_fns, spaces=None, context='spawn', in_series=1):
+    def __init__(self, env_fns, context='spawn', in_series=1):
         """
         Arguments:
 
@@ -94,6 +98,20 @@ class SubprocVecEnv(VecEnv):
         obs = [remote.recv() for remote in self.remotes]
         obs = _flatten_list(obs)
         return _flatten_obs(obs)
+    
+    def get_params(self):
+        self._assert_not_closed()
+        for remote in self.remotes:
+            remote.send(('parameters', None))
+        params = [remote.recv() for remote in self.remotes]
+        params = [param[0] for param in params]
+        return params
+    
+    def get_lower_upper_bound(self):
+        self._assert_not_closed()
+        self.remotes[0].send(('lower_upper_bound', None))
+        params = self.remotes[0].recv()
+        return params
 
     def close_extras(self):
         self.closed = True

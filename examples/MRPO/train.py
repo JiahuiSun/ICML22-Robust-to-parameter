@@ -27,9 +27,11 @@ def train_MRPO(
         algorithm,
         policy,
         ncpu,
-        nsteps,
         nminibatches,
-        ent_coef,
+        eps_start,
+        eps_raise,
+        eps_end,
+        ent_coef
         ):
     # Set up environment
     config = tf.ConfigProto(allow_soft_placement=True,
@@ -50,10 +52,8 @@ def train_MRPO(
             def _thunk():
                 env = base.make_env(env_id, process_idx=rank, outdir=logger.get_dir())
                 env.seed(seed + rank)
-
                 if logger.get_dir():
                     env = bench.Monitor(env, os.path.join(logger.get_dir(), 'train-{}.monitor.json'.format(rank)))
-
                 return env
             return _thunk
         env = SubprocVecEnv([make_env(i) for i in range(ncpu)])
@@ -74,22 +74,20 @@ def train_MRPO(
             MRPO_ppo2.learn(
                 policy=policy_fn,
                 env=env,
-                env_id=env_id,
-                nsteps=nsteps,
+                total_episodes=total_episodes,
+                lr=lr,
+                ncpu=ncpu,
                 nminibatches=nminibatches,
-                #nsteps=2048,  # used by ppo2_baselines / original paper
-                #nsteps=1024,  # used by ppo_baselines
-                #nminibatches=32,  # used by ppo2_baselines
-                #nminibatches=64,  # used by ppo_baselines
+                paths=paths,
+                eps_start=eps_start,
+                eps_raise=eps_raise,
+                eps_end=eps_end,
+                ent_coef=ent_coef,
                 lam=0.95,
                 gamma=0.99,
-                noptepochs=5,  # trajectory训练多少次
+                noptepochs=10,  # trajectory训练多少遍
                 log_interval=10,
-                ent_coef=0.0,
-                lr=lr,
                 cliprange=0.2,
-                total_episodes=total_episodes,
-                paths=paths,
                 save_interval=100
             )
     else:
@@ -102,32 +100,29 @@ def main():
     parser.add_argument('--seed', type=int, default=6, help='RNG seed, defaults to random')
     parser.add_argument('--output', type=str, default='output')
     parser.add_argument('--cuda', type=int, default=-1)
-    # TODO: 跑多核有问题
-    parser.add_argument('--processes', default=1, help='int or "max" for all')
+    parser.add_argument('--processes', default=10, help='int or "max" for all')
    
     # MRPO sepcific
     parser.add_argument('--eps-start', type=float, default=1.0)
     parser.add_argument('--eps-end', type=float, default=40)
     parser.add_argument('--eps-raise', type=float, default=1.005)
 
-    parser.add_argument('--paths', type=int, default=50, help='number of trajectories to sample from each iteration')
+    parser.add_argument('--paths', type=int, default=100, help='number of trajectories to sample from each iteration')
     parser.add_argument('--algorithm', type=str, choices=['ppo2', 'a2c', 'MRPO' ],
         default='MRPO', help='Inner batch policy optimization algorithm')
     parser.add_argument('--policy', choices=['mlp', 'lstm'],
         default='mlp', help='Policy architecture')
 
     # Episode-modification specific:
-    parser.add_argument('--total-episodes', type=int, default=2.5e4) # 5e4
+    parser.add_argument('--total-episodes', type=int, default=5e4) # 5e4
     # RL algo. hyperparameters
     parser.add_argument('--lr', type=float, default=3e-4)
-    parser.add_argument('--nsteps', type=int, default=2048)
-    parser.add_argument('--ent-coef', type=float, default=1e-2, help='Only relevant for A2C')
-    parser.add_argument('--nminibatches', type=int, default=32, help='Only relevant for PPO2')
+    parser.add_argument('--ent-coef', type=float, default=0.0, help='Only relevant for A2C')
+    parser.add_argument('--nminibatches', type=int, default=64, help='Only relevant for PPO2')
     args = parser.parse_args()
 
     # gpu config
     os.environ["CUDA_VISIBLE_DEVICES"] = f"{args.cuda}"
-
     # Configure logger
     logid = time.strftime('%Y%m%d_%H%M%S', time.localtime())
     log_dir = pjoin(args.output, args.env, 'MRPO', logid)
@@ -162,9 +157,11 @@ def main():
         algorithm=args.algorithm,
         policy=args.policy,
         ncpu=ncpu,
-        nsteps=args.nsteps,
         nminibatches=args.nminibatches,
-        ent_coef=args.ent_coef  # default 0.01 in baselines, 0.0001 in chainer A3C
+        eps_start=args.eps_start,
+        eps_raise=args.eps_raise,
+        eps_end=args.eps_end,
+        ent_coef=args.ent_coef
         )
 
 

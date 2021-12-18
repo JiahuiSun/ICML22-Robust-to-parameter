@@ -93,8 +93,8 @@ class Runner(object):
     def __init__(self, *, env, model, nsteps, gamma, lam):
         self.env = env
         self.model = model
-        # nenv = env.num_envs
-        nenv = 1
+        nenv = env.num_envs
+        # nenv = 1
 
         self.obs = np.zeros((nenv,) + env.observation_space.shape, dtype=model.train_model.X.dtype.name)
         self.obsbn = np.zeros((nenv,) + env.observation_space.shape, dtype=model.train_model.X.dtype.name)

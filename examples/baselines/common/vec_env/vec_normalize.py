@@ -2,6 +2,7 @@ from examples.baselines.common.vec_env import VecEnvWrapper
 import numpy as np
 import copy
 
+
 class VecNormalize(VecEnvWrapper):
     """
     A vectorized wrapper that normalizes the observations
