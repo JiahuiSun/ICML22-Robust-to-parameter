@@ -36,7 +36,7 @@ def train_epopt(
         nsteps,
         nminibatches,
         ent_coef,
-        ):
+    ):
     # Set up environment
     config = tf.ConfigProto(allow_soft_placement=True,
                             intra_op_parallelism_threads=ncpu,
@@ -56,10 +56,8 @@ def train_epopt(
             def _thunk():
                 env = base.make_env(env_id, process_idx=rank, outdir=logger.get_dir())
                 env.seed(seed + rank)
-
                 if logger.get_dir():
                     env = bench.Monitor(env, os.path.join(logger.get_dir(), 'train-{}.monitor.json'.format(rank)))
-
                 return env
             return _thunk
         env = SubprocVecEnv([make_env(i) for i in range(ncpu)])
@@ -82,7 +80,6 @@ def train_epopt(
         else:
             print("Running ppo2 with mujoco/roboschool settings")
             epopt_ppo2.learn(
-                # PPO2 mujoco defaults
                 policy=policy_fn,
                 env=env,
                 nsteps=nsteps,
@@ -103,11 +100,8 @@ def train_epopt(
                 paths=paths,
                 epsilon=adaptive_epsilon_fn(epsilon, activate_at),
                 # functions the same as old pposgd checkpointer
-                save_interval=100,
+                save_interval=10,
             )
-        # closed inside ppo2.learn
-        # env.close()
-
     elif algorithm == 'a2c':
         if 'Breakout' in env_id or 'SpaceInvaders' in env_id:
             raise NotImplementedError
@@ -142,7 +136,7 @@ def train_epopt(
 def main():
 
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--env', help='environment ID', default='SunblazeWalker2dRandomNormal-v0')
+    parser.add_argument('--env', help='environment ID', default='SunblazeWalker2dUniform-v0')
     parser.add_argument('--baseline', type=str, choices=['DR', 'EPOpt' ], default='DR')
     parser.add_argument('--seed', type=int, default=12, help='RNG seed, defaults to random')
     parser.add_argument('--output', type=str, default='output')
@@ -153,7 +147,7 @@ def main():
     parser.add_argument('--epsilon', type=float, default=1.0)
     # EPOpt paper keept epsilon=1 until iters>100 (max 200 iters)
     parser.add_argument('--activate', type=int, default=100, help='How long to fix epsilon to 1.0 before e')
-    parser.add_argument('--paths', type=int, default=50, help='number of trajectories to sample from each iteration')
+    parser.add_argument('--paths', type=int, default=100, help='number of trajectories to sample from each iteration')
     parser.add_argument('--algorithm', type=str, choices=['ppo2', 'a2c'],
         default='ppo2', help='Inner batch policy optimization algorithm')
     parser.add_argument('--policy', choices=['mlp', 'lstm'],
@@ -168,12 +162,10 @@ def main():
     parser.add_argument('--nsteps', type=int, default=2048)
     parser.add_argument('--ent-coef', type=float, default=1e-2, help='Only relevant for A2C')
     parser.add_argument('--nminibatches', type=int, default=32, help='Only relevant for PPO2')
-
     args = parser.parse_args()
 
     # gpu config
     os.environ["CUDA_VISIBLE_DEVICES"] = f"{args.cuda}"
-
     # Configure logger
     logid = time.strftime('%Y%m%d_%H%M%S', time.localtime())
     log_dir = pjoin(args.output, args.env, f'{args.baseline}', logid)
@@ -215,8 +207,7 @@ def main():
         nsteps=args.nsteps,
         nminibatches=args.nminibatches,
         ent_coef=args.ent_coef,  # default 0.01 in baselines, 0.0001 in chainer A3C
-        )
+    )
 
 if __name__ == '__main__':
     main()
-

@@ -229,19 +229,16 @@ def learn(*, policy, env, nsteps, total_episodes, ent_coef, lr,
     else:
         assert callable(epsilon)
 
-    # FIXME:
     # Callable lr and cliprange don't work (at the moment) with the
     # total_episodes terminating condition
     if isinstance(lr, float):
         lr = constfn(lr)
     else:
         raise NotImplementedError
-        assert callable(lr)
     if isinstance(cliprange, float):
         cliprange = constfn(cliprange)
     else:
         raise NotImplementedError
-        assert callable(cliprange)
 
     total_episodes = int(total_episodes)
     nenvs = env.num_envs

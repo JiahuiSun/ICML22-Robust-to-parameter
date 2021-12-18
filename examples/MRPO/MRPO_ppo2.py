@@ -337,17 +337,21 @@ def learn(policy, env, total_episodes=5e4, lr=3e-4, ncpu=4,
 
         mblossvals = []
         if states is None: # nonrecurrent version
-            n_batch = returns.shape[0] // nminibatches
-            inds = np.arange(returns.shape[0])
-            for _ in range(noptepochs):
-                np.random.shuffle(inds)
-                for i in range(n_batch):
-                    if i+1 == n_batch:
-                        mbinds = inds[i*nminibatches:]
-                    else:
-                        mbinds = inds[i*nminibatches:(i+1)*nminibatches]
-                    slices = (arr[mbinds] for arr in (obs, returns, masks, actions, values, neglogpacs))
-                    mblossvals.append(model.train(lrnow, cliprangenow, *slices))
+            if returns.shape[0] > nminibatches and nminibatches > 0:
+                n_batch = returns.shape[0] // nminibatches
+                inds = np.arange(returns.shape[0])
+                for _ in range(noptepochs):
+                    np.random.shuffle(inds)
+                    for i in range(n_batch):
+                        if i+1 == n_batch:
+                            mbinds = inds[i*nminibatches:]
+                        else:
+                            mbinds = inds[i*nminibatches:(i+1)*nminibatches]
+                        slices = (arr[mbinds] for arr in (obs, returns, masks, actions, values, neglogpacs))
+                        mblossvals.append(model.train(lrnow, cliprangenow, *slices))
+            else:
+                for _ in range(noptepochs):
+                    mblossvals.append(model.train(lrnow, cliprangenow, *(obs, returns, masks, actions, values, neglogpacs)))
         else: # recurrent version
             raise NotImplementedError("Use examples.epopt_lstm")
 
