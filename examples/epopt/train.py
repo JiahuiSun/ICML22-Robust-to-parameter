@@ -3,7 +3,6 @@ from os.path import join as pjoin
 import argparse
 import multiprocessing
 import os
-# from baselines.common import set_global_seeds
 from gym.utils.seeding import create_seed
 import tensorflow as tf
 import sys
@@ -11,8 +10,6 @@ sys.path.append("/root/jiang21c-supp/MRPO-source-code/MRPOCode_ICML")
 
 from examples.baselines import logger
 from examples.baselines import bench
-# ppo2 uses a2c's base.py
-#from ..a2c_baselines import base
 from examples.epopt import base
 from examples.epopt import epopt_ppo2
 from examples.epopt import epopt_a2c

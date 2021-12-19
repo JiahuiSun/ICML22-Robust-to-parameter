@@ -1,8 +1,3 @@
-"""(Further) adapted from ppo2_baselines/ppo2_episodes.py
-
-Ideally, we should only have to modify the trajectory segment generation
-"""
-
 import os
 import time
 import joblib
@@ -11,12 +6,10 @@ import os.path as osp
 import pickle
 import tensorflow as tf
 from examples.baselines import logger
-from collections import deque
 from examples.baselines.common import explained_variance
 from tensorboardX import SummaryWriter
 
-from ..ppo2_baselines.ppo2_episodes import constfn, sf01
-from ..ppo2_baselines.ppo2_episodes import Runner as BaseRunner
+from ..ppo2_baselines.ppo2_episodes import constfn
 
 
 class EPOptModel(object):
