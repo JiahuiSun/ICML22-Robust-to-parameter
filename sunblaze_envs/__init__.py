@@ -49,14 +49,20 @@ register(
 # ============== Mujoco environments ================
 # InvertPendulum
 register(
-    id='SunblazePendulum-v0',
+    id='SunblazeInvertedPendulum-v0',
     entry_point='sunblaze_envs.mujoco:ModifiableRoboschoolInvertedPendulum',
     max_episode_steps=1000,
 )
 
 register(
-    id='SunblazePendulumRandomNormal-v0',
-    entry_point='sunblaze_envs.mujoco:RandomNormalInvertedPendulum',
+    id='SunblazeInvertedPendulumUniform-v0',
+    entry_point='sunblaze_envs.mujoco:UniformInvertedPendulum',
+    max_episode_steps=1000,
+)
+
+register(
+    id='SunblazeInvertedPendulumGaussian-v0',
+    entry_point='sunblaze_envs.mujoco:GaussianInvertedPendulum',
     max_episode_steps=1000,
 )
 
@@ -69,8 +75,15 @@ register(
 )
 
 register(
-    id='SunblazeAntRandomNormal-v0',
-    entry_point='sunblaze_envs.mujoco:RandomNormalAnt',
+    id='SunblazeAntUniform-v0',
+    entry_point='sunblaze_envs.mujoco:UniformAnt',
+    max_episode_steps=1000,
+    reward_threshold=3800.0,
+)
+
+register(
+    id='SunblazeAntGaussian-v0',
+    entry_point='sunblaze_envs.mujoco:GaussianAnt',
     max_episode_steps=1000,
     reward_threshold=3800.0,
 )
@@ -84,8 +97,15 @@ register(
 )
 
 register(
-    id='SunblazeHumanoidRandomNormal-v0',
-    entry_point='sunblaze_envs.mujoco:RandomNormalHumanoid',
+    id='SunblazeHumanoidUniform-v0',
+    entry_point='sunblaze_envs.mujoco:UniformHumanoid',
+    max_episode_steps=1000,
+    reward_threshold=3800.0,
+)
+
+register(
+    id='SunblazeHumanoidGaussian-v0',
+    entry_point='sunblaze_envs.mujoco:GaussianHumanoid',
     max_episode_steps=1000,
     reward_threshold=3800.0,
 )
@@ -121,8 +141,15 @@ register(
 )
 
 register(
-    id='SunblazeReacherRandomNormal-v0',
-    entry_point='sunblaze_envs.mujoco:RandomNormalRoboschoolReacher',
+    id='SunblazeReacherUniform-v0',
+    entry_point='sunblaze_envs.mujoco:UniformReacher',
+    max_episode_steps=1000,
+    reward_threshold=3800.0,
+)
+
+register(
+    id='SunblazeReacherGaussian-v0',
+    entry_point='sunblaze_envs.mujoco:GaussianReacher',
     max_episode_steps=1000,
     reward_threshold=3800.0,
 )
@@ -136,8 +163,15 @@ register(
 )
 
 register(
-    id='SunblazeHopperRandomNormal-v0',
-    entry_point='sunblaze_envs.mujoco:RandomNormalHopper',
+    id='SunblazeHopperUniform-v0',
+    entry_point='sunblaze_envs.mujoco:UniformHopper',
+    max_episode_steps=1000,
+    reward_threshold=3800.0,
+)
+
+register(
+    id='SunblazeHopperGaussian-v0',
+    entry_point='sunblaze_envs.mujoco:GaussianHopper',
     max_episode_steps=1000,
     reward_threshold=3800.0,
 )
@@ -151,8 +185,15 @@ register(
 )
 
 register(
-    id='SunblazeHalfCheetahRandomNormal-v0',
-    entry_point='sunblaze_envs.mujoco:RandomNormalHalfCheetah',
+    id='SunblazeHalfCheetahUniform-v0',
+    entry_point='sunblaze_envs.mujoco:UniformHalfCheetah',
+    max_episode_steps=1000,
+    reward_threshold=4800.0,
+)
+
+register(
+    id='SunblazeHalfCheetahGaussian-v0',
+    entry_point='sunblaze_envs.mujoco:GaussianHalfCheetah',
     max_episode_steps=1000,
     reward_threshold=4800.0,
 )
