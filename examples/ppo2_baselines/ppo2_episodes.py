@@ -94,7 +94,6 @@ class Runner(object):
         self.env = env
         self.model = model
         nenv = env.num_envs
-        # nenv = 1
 
         self.obs = np.zeros((nenv,) + env.observation_space.shape, dtype=model.train_model.X.dtype.name)
         self.obsbn = np.zeros((nenv,) + env.observation_space.shape, dtype=model.train_model.X.dtype.name)

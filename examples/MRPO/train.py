@@ -53,7 +53,7 @@ def train_MRPO(
                 env = base.make_env(env_id, process_idx=rank, outdir=logger.get_dir())
                 env.seed(seed + rank)
                 if logger.get_dir():
-                    env = bench.Monitor(env, os.path.join(logger.get_dir(), 'train-{}.monitor.json'.format(rank)))
+                    env = bench.Monitor(env, pjoin(logger.get_dir(), 'train-{}.monitor.json'.format(rank)), allow_early_resets=True)
                 return env
             return _thunk
         env = SubprocVecEnv([make_env(i) for i in range(ncpu)])
@@ -76,7 +76,6 @@ def train_MRPO(
                 env=env,
                 total_episodes=total_episodes,
                 lr=lr,
-                ncpu=ncpu,
                 nminibatches=nminibatches,
                 paths=paths,
                 eps_start=eps_start,
@@ -100,7 +99,7 @@ def main():
     parser.add_argument('--seed', type=int, help='RNG seed, defaults to random')
     parser.add_argument('--output', type=str, default='output')
     parser.add_argument('--cuda', type=int, default=-1)
-    parser.add_argument('--processes', default=25, help='int or "max" for all')
+    parser.add_argument('--processes', default=20, help='int or "max" for all')
    
     # MRPO sepcific
     parser.add_argument('--eps-start', type=float, default=1.0)

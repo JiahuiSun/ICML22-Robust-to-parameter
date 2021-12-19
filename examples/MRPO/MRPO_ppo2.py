@@ -10,7 +10,6 @@ from tensorboardX import SummaryWriter
 from examples.baselines import logger
 from examples.baselines.common import explained_variance
 from examples.ppo2_baselines.ppo2_episodes import constfn
-from examples.ppo2_baselines.ppo2_episodes import Runner as BaseRunner
 
 
 class MRPOModel(object):
@@ -98,13 +97,17 @@ class MRPOModel(object):
         tf.global_variables_initializer().run(session=sess)
 
 
-class MRPORunner(BaseRunner):
+class MRPORunner():
     """Modified the trajectory generator in PPO2 to follow EPOpt-e"""
-    def __init__(self, env, model, nsteps, gamma, lam):
-        super(MRPORunner, self).__init__(env=env, model=model, nsteps=nsteps, gamma=gamma, lam=lam)
-        self.gamma_lam = gamma / (1-gamma)**2
+    def __init__(self, env, model, gamma, lam):
+        self.env = env
+        self.model = model
+        self.gamma = gamma
+        self.lam = lam
+        self.n_parallel = env.num_envs
+        self.states = None
         
-    def run(self, paths, eps, n_parallel=4):
+    def run(self, paths, eps):
         n_mb_obs = [[] for _ in range(paths)]
         n_mb_rewards = [[] for _ in range(paths)]
         n_mb_actions = [[] for _ in range(paths)]
@@ -114,54 +117,71 @@ class MRPORunner(BaseRunner):
         n_mb_envparam = [[] for _ in range(paths)]
         n_Jpi = np.zeros(paths, dtype=np.float)
         n_Jlen = np.zeros(paths, dtype=np.float)
-        num_episodes = 0
-        self.dones = [True]
 
-        # 采样100个trajectory，每次并行20个，那么要重复5次，每次就要保存20条trajectory
-        n_times = paths // n_parallel
-        for N in range(n_times):
-            mb_obs, mb_rewards, mb_actions, mb_values, mb_dones, mb_neglogpacs = [], [], [], [], [], []
-            stop_time_idx = np.zeros(n_parallel, dtype=np.int)
-            Jpi = np.zeros(n_parallel, dtype=np.float)
-            Jlen = np.zeros(n_parallel, dtype=np.float)
-            for istep in range(self.env.venv.spec.max_episode_steps):
-                actions, values, self.states, neglogpacs = self.model.step(self.obs, self.states, self.dones)
-                mb_obs.append(self.obs.copy())
-                mb_actions.append(actions)
-                mb_values.append(values)
-                mb_neglogpacs.append(neglogpacs)
+        path_cnt = 0
+        mb_obs, mb_rewards, mb_actions, mb_values, mb_dones, mb_neglogpacs = [], [], [], [], [], []
+        mb_Jpi, mb_Jlen, mb_params = [], [], []
+        obs, _  = self.env.reset()
+        while True:
+            actions, values, _, neglogpacs = self.model.step(obs)
+            mb_obs.append(obs)
+            mb_actions.append(actions)
+            mb_values.append(values)
+            mb_neglogpacs.append(neglogpacs)
+            mb_params.append(self.env.get_params())
 
-                self.obs[:], rewards, self.dones, infos, self.obsbn[:] = self.env.step(actions)
-                mb_rewards.append(rewards)
-                mb_dones.append(self.dones)
+            obs, rewards, dones, infos, _ = self.env.step(actions)
+            mb_rewards.append(rewards)
+            mb_dones.append(dones)
+            Jpi, Jlen = [], []
+            for info in infos:
+                if info.get('episode'):
+                    Jpi.append(info['episode']['r'])
+                    Jlen.append(info['episode']['l'])
+                else:
+                    Jpi.append(0)
+                    Jlen.append(0)
+            mb_Jpi.append(Jpi)
+            mb_Jlen.append(Jlen)
 
-                # 当环境第一次遇到done时进行统计，非第一次就不计入了
-                for i, d in enumerate(self.dones):
-                    if d and stop_time_idx[i] == 0:
-                        stop_time_idx[i] = istep + 1
-                        Jpi[i] = infos[i]['episode']['r']
-                        Jlen[i] = infos[i]['episode']['l']
-                if all(stop_time_idx > 0):
+            if any(dones):
+                path_cnt += sum(dones)
+                if path_cnt >= paths:
                     break
+        
+        # 把trajectory从4条轨道中分离到100条轨道
+        mb_obs = np.array(mb_obs).transpose(1, 0, 2)
+        mb_actions = np.array(mb_actions).transpose(1, 0, 2)
+        mb_rewards = np.array(mb_rewards).transpose(1, 0)
+        mb_values = np.array(mb_values).transpose(1, 0)
+        mb_dones = np.array(mb_dones).transpose(1, 0)
+        mb_neglogpacs = np.array(mb_neglogpacs).transpose(1, 0)
+        mb_Jpi = np.array(mb_Jpi).transpose(1, 0)
+        mb_Jlen = np.array(mb_Jlen).transpose(1, 0)
+        mb_params = np.array(mb_params).transpose(1, 0, 2)
 
-            params = self.env.get_params()
-            mb_obs = np.array(mb_obs)
-            mb_actions = np.array(mb_actions)
-            mb_rewards = np.array(mb_rewards)
-            mb_values = np.array(mb_values)
-            mb_dones = np.array(mb_dones)
-            mb_neglogpacs = np.array(mb_neglogpacs)
-            # 提取每个环境的一条trajectory，因为环境执行完有早有晚
-            for i in range(n_parallel):
-                n_mb_obs[i+n_parallel*N] = mb_obs[:stop_time_idx[i], i]
-                n_mb_actions[i+n_parallel*N] = mb_actions[:stop_time_idx[i], i]
-                n_mb_rewards[i+n_parallel*N] = mb_rewards[:stop_time_idx[i], i]
-                n_mb_values[i+n_parallel*N] = mb_values[:stop_time_idx[i], i]
-                n_mb_dones[i+n_parallel*N] = mb_dones[:stop_time_idx[i], i]
-                n_mb_neglogpacs[i+n_parallel*N] = mb_neglogpacs[:stop_time_idx[i], i]
-                n_mb_envparam[i+n_parallel*N] = params[i]
-                n_Jpi[i+n_parallel*N] = Jpi[i]
-                n_Jlen[i+n_parallel*N] = Jlen[i]
+        N = 0
+        exit_flag = False
+        for i in range(self.n_parallel):
+            pre_inds = np.where(mb_dones[i])[0]
+            inds = [0]
+            inds.extend(pre_inds+1)
+            for st, end in zip(inds[0:-1], inds[1:]):
+                n_mb_obs[N] = mb_obs[i, st:end]
+                n_mb_actions[N] = mb_actions[i, st:end]
+                n_mb_rewards[N] = mb_rewards[i, st:end]
+                n_mb_values[N] = mb_values[i, st:end]
+                n_mb_dones[N] = mb_dones[i, st:end]
+                n_mb_neglogpacs[N] = mb_neglogpacs[i, st:end]
+                n_mb_envparam[N] = mb_params[i, end-1]
+                n_Jpi[N] = mb_Jpi[i, end-1]
+                n_Jlen[N] = mb_Jlen[i, end-1]
+                N += 1
+                if N >= paths:
+                    exit_flag = True
+                    break
+            if exit_flag:
+                break
 
         # Compute the worst epsilon paths and concatenate them
         episode_returns = np.array([sum(r) for r in n_mb_rewards]).squeeze()
@@ -175,6 +195,7 @@ class MRPORunner(BaseRunner):
         wst_envparam = n_mb_envparam[minidx]
 
         # Trajectory selection
+        num_episodes = 0
         mb_obs, mb_rewards, mb_actions, mb_values, mb_dones, mb_neglogpacs = [],[],[],[],[],[]
         lower_param1, upper_param1, lower_param2, upper_param2 = self.env.get_lower_upper_bound()
         envparam_normalizatio = np.zeros(shape=np.array(wst_envparam).shape)
@@ -191,22 +212,15 @@ class MRPORunner(BaseRunner):
                 episode_returns_percen10.append(episode_returns[N])
                 wst_percen_params_list.append(n_mb_envparam[N])
                 wst_percen_idx_list.append(N)
-
                 num_episodes += 1
-                # "cache" values to keep track of final ones
-                next_obs = n_mb_obs[N]
-                next_rewards = n_mb_rewards[N]
-                next_actions = n_mb_actions[N]
-                next_values = n_mb_values[N]
-                next_dones = n_mb_dones[N]
-                next_neglogpacs = n_mb_neglogpacs[N]
+
                 # concatenate
-                mb_obs.extend(next_obs)
-                mb_rewards.extend(next_rewards)
-                mb_actions.extend(next_actions)
-                mb_values.extend(next_values)
-                mb_dones.extend(next_dones)
-                mb_neglogpacs.extend(next_neglogpacs)
+                mb_obs.extend(n_mb_obs[N])
+                mb_rewards.extend(n_mb_rewards[N])
+                mb_actions.extend(n_mb_actions[N])
+                mb_values.extend(n_mb_values[N])
+                mb_dones.extend(n_mb_dones[N])
+                mb_neglogpacs.extend(n_mb_neglogpacs[N])
 
         # add trajectories that is chosen by their metric eps
         wst_percen_params_arr = np.array(wst_percen_params_list)
@@ -217,20 +231,14 @@ class MRPORunner(BaseRunner):
             objs = episode_returns[N] - eps * envparam_comp
             if all(objs>episode_returns_percen10) and N not in wst_percen_idx_list:
                 num_episodes += 1
-                # "cache" values to keep track of final ones
-                next_obs = n_mb_obs[N]
-                next_rewards = n_mb_rewards[N]
-                next_actions = n_mb_actions[N]
-                next_values = n_mb_values[N]
-                next_dones = n_mb_dones[N]
-                next_neglogpacs = n_mb_neglogpacs[N]
+
                 # concatenate
-                mb_obs.extend(next_obs)
-                mb_rewards.extend(next_rewards)
-                mb_actions.extend(next_actions)
-                mb_values.extend(next_values)
-                mb_dones.extend(next_dones)
-                mb_neglogpacs.extend(next_neglogpacs)
+                mb_obs.extend(n_mb_obs[N])
+                mb_rewards.extend(n_mb_rewards[N])
+                mb_actions.extend(n_mb_actions[N])
+                mb_values.extend(n_mb_values[N])
+                mb_dones.extend(n_mb_dones[N])
+                mb_neglogpacs.extend(n_mb_neglogpacs[N])
 
         total_steps = len(mb_rewards)  # 所有trajectory一共有多少step
         ratio = paths // 10
@@ -238,7 +246,7 @@ class MRPORunner(BaseRunner):
         eprewmean_all = np.mean(n_Jpi)
         avg_traj_len = np.mean(n_Jlen)
 
-        mb_obs = np.asarray(mb_obs, dtype=self.obs.dtype)
+        mb_obs = np.asarray(mb_obs, dtype=np.float32)
         mb_rewards = np.asarray(mb_rewards, dtype=np.float32)
         mb_actions = np.asarray(mb_actions)
         mb_values = np.asarray(mb_values, dtype=np.float32)
@@ -246,12 +254,9 @@ class MRPORunner(BaseRunner):
         mb_dones = np.asarray(mb_dones, dtype=np.bool)
 
         # GAE
-        # NOTE: 这里不能用self.obs，因为最后一个trajectory可能没有被选择
-        last_obs = mb_obs[-n_parallel:]
+        last_obs = mb_obs[-self.n_parallel:]
         last_done = mb_dones[-1]
-        last_values = self.model.value(last_obs, self.states, last_done)  # value function
-        last_values = last_values[-1]
-
+        last_values = self.model.value(last_obs)[-1]  # value function
         mb_returns = np.zeros_like(mb_rewards)
         mb_advs = np.zeros_like(mb_rewards)
         lastgaelam = 0
@@ -269,7 +274,7 @@ class MRPORunner(BaseRunner):
         return mb_obs, mb_returns, mb_dones, mb_actions, mb_values, mb_neglogpacs, self.states, num_episodes, eprewmean_all, epremean_percentile10, avg_traj_len
 
 
-def learn(policy, env, total_episodes=5e4, lr=3e-4, ncpu=4,
+def learn(policy, env, total_episodes=5e4, lr=3e-4,
         ent_coef=0.0, vf_coef=0.5, max_grad_norm=0.5, 
         gamma=0.99, lam=0.95, log_interval=10, 
         nminibatches=64, noptepochs=4, cliprange=0.2,
@@ -289,7 +294,6 @@ def learn(policy, env, total_episodes=5e4, lr=3e-4, ncpu=4,
 
     total_episodes = int(total_episodes)
     nenvs = env.num_envs
-    # nenvs = 1
     ob_space = env.observation_space
     ac_space = env.action_space
     eps = eps_start
@@ -303,7 +307,7 @@ def learn(policy, env, total_episodes=5e4, lr=3e-4, ncpu=4,
             fh.write(cloudpickle.dumps(make_model))
 
     model = make_model()
-    runner = MRPORunner(env=env, model=model, nsteps=0, gamma=gamma, lam=lam)
+    runner = MRPORunner(env=env, model=model, gamma=gamma, lam=lam)
 
     tfirststart = time.time()
     update = 0
@@ -320,8 +324,8 @@ def learn(policy, env, total_episodes=5e4, lr=3e-4, ncpu=4,
         frac = 1.0 - (update - 1.0) / total_episodes
         lrnow = lr(frac)
         cliprangenow = cliprange(frac)
-        
-        obs, returns, masks, actions, values, neglogpacs, states, num_episodes, eprewmean_all, epremean_percentile10, avg_traj_len = runner.run(paths=paths, eps=eps, n_parallel=ncpu)
+
+        obs, returns, masks, actions, values, neglogpacs, states, num_episodes, eprewmean_all, epremean_percentile10, avg_traj_len = runner.run(paths=paths, eps=eps)
         assert num_episodes==np.sum(masks), (num_episodes, np.sum(masks))
         episodes_so_far += num_episodes
 

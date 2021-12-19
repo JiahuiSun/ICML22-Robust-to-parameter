@@ -56,7 +56,7 @@ class Monitor(Wrapper):
         return (ob, rew, done, info)
 
     def update(self, ob, rew, done, info):
-        # 每个step把以前所有的reward都记录一下
+        # TODO: 每个step把以前所有的reward都记录一下，因为reward要被归一化了
         self.rewards.append(rew)
         if done:
             self.needs_reset = True
