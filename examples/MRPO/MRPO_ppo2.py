@@ -108,6 +108,7 @@ class MRPORunner():
         self.states = None
         
     def run(self, paths, eps):
+        # 收集paths条数据
         n_mb_obs = [[] for _ in range(paths)]
         n_mb_rewards = [[] for _ in range(paths)]
         n_mb_actions = [[] for _ in range(paths)]

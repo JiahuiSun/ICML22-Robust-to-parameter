@@ -57,7 +57,7 @@ def train_epopt(
                 env = base.make_env(env_id, process_idx=rank, outdir=logger.get_dir())
                 env.seed(seed + rank)
                 if logger.get_dir():
-                    env = bench.Monitor(env, os.path.join(logger.get_dir(), 'train-{}.monitor.json'.format(rank)))
+                    env = bench.Monitor(env, pjoin(logger.get_dir(), 'train-{}.monitor.json'.format(rank)), allow_early_resets=True)
                 return env
             return _thunk
         env = SubprocVecEnv([make_env(i) for i in range(ncpu)])
@@ -82,24 +82,17 @@ def train_epopt(
             epopt_ppo2.learn(
                 policy=policy_fn,
                 env=env,
-                nsteps=nsteps,
                 nminibatches=nminibatches,
-                #nsteps=2048,  # used by ppo2_baselines / original paper
-                #nsteps=1024,  # used by ppo_baselines
-                #nminibatches=32,  # used by ppo2_baselines
-                #nminibatches=64,  # used by ppo_baselines
                 lam=0.95,
                 gamma=0.99,
-                noptepochs=5,
+                noptepochs=10,
                 log_interval=10,
                 ent_coef=0.0,
                 lr=lr,
                 cliprange=0.2,
                 total_episodes=total_episodes,
-                # EPOpt specific
                 paths=paths,
                 epsilon=adaptive_epsilon_fn(epsilon, activate_at),
-                # functions the same as old pposgd checkpointer
                 save_interval=10,
             )
     elif algorithm == 'a2c':
@@ -127,41 +120,36 @@ def train_epopt(
                 log_interval=1,
                 save_interval=100,
             )
-
     # some other inner RL algorithm
     else:
         raise NotImplementedError
 
 
 def main():
-
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--env', help='environment ID', default='SunblazeWalker2dUniform-v0')
     parser.add_argument('--baseline', type=str, choices=['DR', 'EPOpt' ], default='DR')
     parser.add_argument('--seed', type=int, default=12, help='RNG seed, defaults to random')
     parser.add_argument('--output', type=str, default='output')
     parser.add_argument('--cuda', type=int, default=-1)
-    parser.add_argument('--processes', default=1, help='int or "max" for all')
+    parser.add_argument('--processes', default=4, help='int or "max" for all')
 
     # EPOpt specific
     parser.add_argument('--epsilon', type=float, default=1.0)
     # EPOpt paper keept epsilon=1 until iters>100 (max 200 iters)
-    parser.add_argument('--activate', type=int, default=100, help='How long to fix epsilon to 1.0 before e')
+    parser.add_argument('--activate', type=int, default=10, help='How long to fix epsilon to 1.0 before e')
     parser.add_argument('--paths', type=int, default=100, help='number of trajectories to sample from each iteration')
     parser.add_argument('--algorithm', type=str, choices=['ppo2', 'a2c'],
         default='ppo2', help='Inner batch policy optimization algorithm')
     parser.add_argument('--policy', choices=['mlp', 'lstm'],
         default='mlp', help='Policy architecture')
-
-    # Episode-modification specific:
-    # parser.add_argument('--num-timesteps', type=int, default=int(10e6))
     parser.add_argument('--total-episodes', type=int, default=5e4)
 
     # RL algo. yyperparameters
     parser.add_argument('--lr', type=float, default=3e-4)
     parser.add_argument('--nsteps', type=int, default=2048)
     parser.add_argument('--ent-coef', type=float, default=1e-2, help='Only relevant for A2C')
-    parser.add_argument('--nminibatches', type=int, default=32, help='Only relevant for PPO2')
+    parser.add_argument('--nminibatches', type=int, default=128, help='Only relevant for PPO2')
     args = parser.parse_args()
 
     # gpu config
@@ -208,6 +196,7 @@ def main():
         nminibatches=args.nminibatches,
         ent_coef=args.ent_coef,  # default 0.01 in baselines, 0.0001 in chainer A3C
     )
+
 
 if __name__ == '__main__':
     main()
