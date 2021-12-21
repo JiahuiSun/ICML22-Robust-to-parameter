@@ -33,6 +33,7 @@ class Monitor(Wrapper):
         self.current_reset_info = {} # extra info about the current episode, that was passed in during reset()
 
     def reset(self, **kwargs):
+        # NOTE: 这里可以给reset传参数，但是由于vectorEnv，还是不方便
         self.reset_state()
         for k in self.reset_keywords:
             v = kwargs.get(k)
@@ -56,7 +57,7 @@ class Monitor(Wrapper):
         return (ob, rew, done, info)
 
     def update(self, ob, rew, done, info):
-        # TODO: 每个step把以前所有的reward都记录一下，因为reward要被归一化了
+        # NOTE: 每个step把以前所有的reward都记录一下，因为reward要被归一化了
         self.rewards.append(rew)
         if done:
             self.needs_reset = True
