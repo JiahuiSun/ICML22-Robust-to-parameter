@@ -187,7 +187,7 @@ class MRPORunner():
         # Compute the worst epsilon paths and concatenate them
         episode_returns = np.array([sum(r) for r in n_mb_rewards]).squeeze()
         cutoff = np.min(episode_returns)
-        minidx_ = np.argwhere(episode_returns == cutoff).squeeze()
+        minidx_ = np.argwhere(episode_returns == cutoff).squeeze().tolist()
         if isinstance(minidx_, list):
             print('list')
             minidx = minidx_[0]
